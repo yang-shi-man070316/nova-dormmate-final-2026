@@ -1,43 +1,38 @@
-// 获取页面元素
+const analyseBtn = document.getElementById('analyseBtn');
 const tempInput = document.getElementById('tempInput');
 const humInput = document.getElementById('humInput');
-const analyseBtn = document.getElementById('analyseBtn');
 const statusText = document.getElementById('statusText');
 const adviceText = document.getElementById('adviceText');
 const historyList = document.getElementById('historyList');
 
-// 历史记录数组
-let historyArr = [];
+let records = [];
 
-// 点击分析环境按钮
 analyseBtn.onclick = function(){
-    //1.拿到输入框原始字符串，去除首尾空格
     let tempStr = tempInput.value.trim();
     let humStr = humInput.value.trim();
 
-    //【第一步：判断是否为空】
-    if(tempStr === '' || humStr === ''){
-        alert("请输入温度和湿度！");
+    // 第一层：判断是否为空（任意一个为空就触发）
+    if(tempStr === "" || humStr === ""){
+        alert("不能输入空值！温度和湿度都必须填写");
         return;
     }
 
-    //【第二步：转数字】
+    // 两个框都有内容，再转数字
     let temp = Number(tempStr);
     let hum = Number(humStr);
 
-    //【第三步：判断是不是有效数字】
+    // 第二层：内容存在，但不是数字（字母、汉字）
     if(isNaN(temp) || isNaN(hum)){
-        alert("输入不是有效数字！");
+        alert("请输入有效的数字！");
         return;
     }
 
-    //【第四步：判断数值范围】
-    if(temp < 0 || temp > 60 || hum <0 || hum >100){
+    // 第三层：数字但是超出范围
+    if(temp < 0 || temp >60 || hum <0 || hum>100){
         alert("温湿度数值超出合理范围");
         return;
     }
 
-    //4. 判断温湿度状态
     let status, advice;
     if(temp >= 30){
         status = "偏热";
@@ -50,27 +45,26 @@ analyseBtn.onclick = function(){
         advice = "注意保暖";
     }
 
-    //5.页面展示状态和建议
-    statusText.textContent = status;
+    statusText.textContent = "当前状态：" + status;
     adviceText.textContent = advice;
 
-    //6.获取当前日期时间
     let nowTime = new Date().toLocaleString();
-
-    //7.新增一条记录放进数组
     let record = {
         time: nowTime,
         temp: temp,
         hum: hum,
         status: status
-    };
-    historyArr.push(record);
-
-    //8.渲染全部历史记录
-    let html = '';
-    for(let i = 0; i < historyArr.length; i++){
-        let r = historyArr[i];
-        html += `<div class="history-item">${r.time} | ${r.temp}℃ | ${r.hum}% | ${r.status}</div>`
     }
-    historyList.innerHTML = html;
+    records.push(record);
+    renderHistory();
+}
+
+function renderHistory(){
+    historyList.innerHTML = "";
+    for(let r of records){
+        let div = document.createElement("div");
+        div.className = "history-item";
+        div.textContent = `${r.time} | ${r.temp}℃ | ${r.hum}% | ${r.status}`;
+        historyList.appendChild(div);
+    }
 }

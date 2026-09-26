@@ -2,36 +2,35 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>DormMate 宿舍环境分析</title>
+    <title>DormMate</title>
+    <!-- 引入外部css -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>DormMate 宿舍环境分析</h1>
-        <div class="input-area">
-            <div>
-                <label>温度：</label>
-                <input type="text" id="tempInput" placeholder="输入温度">
-                <span>℃</span>
-            </div>
-            <div>
-                <label>湿度：</label>
-                <input type="text" id="humInput" placeholder="输入湿度">
-                <span>%</span>
-            </div>
+    <div class="card">
+        <h1>DormMate</h1>
+
+        <div class="line-item">
+            温度：<input type="text" id="tempInput" placeholder="输入温度">℃
+        </div>
+        <div class="line-item">
+            湿度：<input type="text" id="humInput" placeholder="输入湿度"> %
+        </div>
+
+        <div class="action-row">
             <button id="analyseBtn">分析环境</button>
+            <span class="status-box" id="statusText">当前状态</span>
         </div>
 
-        <div class="result-area">
-            <h3>当前状态：<span id="statusText"></span></h3>
-            <p>建议：<span id="adviceText"></span></p>
+        <div style="font-size:18px;margin:10px 0;">
+            建议：<span id="adviceText"></span>
         </div>
 
-        <div class="history-area">
-            <h3>历史记录</h3>
-            <div id="historyList"></div>
-        </div>
+        <h3>历史记录</h3>
+        <div id="historyList"></div>
     </div>
+
+    <!-- 引入外部js -->
     <script src="script.js"></script>
 </body>
-</html>    
+</html>
