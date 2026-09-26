@@ -48,7 +48,8 @@ analyseBtn.onclick = function(){
     statusText.textContent = "当前状态：" + status;
     adviceText.textContent = advice;
 
-    let nowTime = new Date().toLocaleString();
+    // 改成不带逗号的时间格式，不会拆分表格，WPS不容易出现#
+    let nowTime = new Date().toISOString();
     let record = {
         time: nowTime,
         temp: temp,
@@ -68,3 +69,20 @@ function renderHistory(){
         historyList.appendChild(div);
     }
 }
+
+// 导出CSV
+function exportCSV() {
+    let csvContent = "time,temperature,humidity,status\n";
+    records.forEach(item => {
+        let line = `${item.time},${item.temp},${item.hum},${item.status}\n`
+        csvContent += line;
+    });
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "dormmate.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+}
+document.getElementById("exportCsvBtn").addEventListener("click", exportCSV);
