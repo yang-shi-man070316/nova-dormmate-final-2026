@@ -86,3 +86,72 @@ function exportCSV() {
     URL.revokeObjectURL(url);
 }
 document.getElementById("exportCsvBtn").addEventListener("click", exportCSV);
+
+// ========== M3 Camera 摄像头拍照 ==========
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const openCameraBtn = document.getElementById('openCameraBtn');
+const takePhotoBtn = document.getElementById('takePhotoBtn');
+
+let mediaStream = null;
+
+openCameraBtn.onclick = async function() {
+    alert("✅ 按钮点击生效，开始尝试调用摄像头");
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("❌ 浏览器不支持摄像头API！请用Chrome/Edge，localhost访问");
+        return;
+    }
+    try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = mediaStream;
+        alert("✅ 摄像头已开启");
+    } catch(err) {
+        alert("❌ 打开摄像头失败：" + err.name);
+    }
+}
+
+takePhotoBtn.onclick = function() {
+    alert("拍照按钮被点击");
+    if(!mediaStream){
+        alert("请先打开摄像头");
+        return;
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const link = document.createElement('a');
+    link.download = `snapshot_${new Date().getTime()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+}
+
+// ========== M3 TTS朗读 ==========
+const ttsReadBtn = document.getElementById('ttsReadBtn');
+ttsReadBtn.onclick = function() {
+    let statusText = document.getElementById('statusText').innerText;
+    const utter = new SpeechSynthesisUtterance("当前环境状态：" + statusText);
+    utter.lang = 'zh-CN';
+    speechSynthesis.speak(utter);
+}
+
+// ========== M3 ASR语音识别 ==========
+const startAsrBtn = document.getElementById('startAsrBtn');
+const asrResultText = document.getElementById('asrResultText');
+
+startAsrBtn.onclick = function() {
+    if (!('webkitSpeechRecognition' in window)) {
+        alert("❌ 浏览器不支持语音识别，请使用Edge浏览器");
+        return;
+    }
+    const recognition = new webkitSpeechRecognition();
+    recognition.lang = "zh-CN";
+    recognition.start();
+    asrResultText.innerText = "正在聆听...";
+    recognition.onresult = function(e) {
+        const text = e.results[0][0].transcript;
+        asrResultText.innerText = text;
+    }
+    recognition.onerror = function(e) {
+        asrResultText.innerText = "识别失败";
+    }
+}
+
