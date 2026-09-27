@@ -1,0 +1,18 @@
+<view class="card">
+  <view class="title">DormMate</view>
+
+  <view class="line-item">
+    <text>温度：</text>
+    <input type="text" bindinput="onTempInput" placeholder="输入温度"/>
+    <text>℃</text>
+  </view>
+  <view class="line-item">
+    <text>湿度：</text>
+    <input type="text" bindinput="onHumInput" placeholder="输入湿度"/>
+    <text>%</text>
+  </view>
+
+  <button bindtap="analyseEnv">分析环境</button>
+  <view class="status">{{status}}</view>
+  <view class="advice">{{advice}}</view>
+</view>

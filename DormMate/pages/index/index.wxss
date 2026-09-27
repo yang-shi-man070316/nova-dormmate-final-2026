@@ -1,0 +1,48 @@
+page{
+  background-color:#f4f4f4;
+  padding:30rpx;
+}
+.card{
+  background:#ffffff;
+  border-radius:16rpx;
+  padding:40rpx;
+}
+.title{
+  font-size:36rpx;
+  font-weight:bold;
+  text-align:center;
+  margin-bottom:40rpx;
+}
+.line-item{
+  font-size:30rpx;
+  margin-bottom:30rpx;
+}
+input{
+  border:1rpx solid #cccccc;
+  padding:12rpx;
+  width:240rpx;
+  margin-left:10rpx;
+}
+button{
+  margin:30rpx 0;
+}
+.status{
+  font-size:32rpx;
+  color:#ff4444;
+  margin:10rpx 0;
+}
+.advice{
+  font-size:28rpx;
+  color:#333333;
+}
+.line-item{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:20px;
+}
+input{
+  width:140px;
+  border:1px solid #999;
+  padding:4px;
+}
