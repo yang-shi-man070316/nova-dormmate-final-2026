@@ -73,3 +73,11 @@ button{
     border-radius:12px;
     font-size:18px;
 }
+
+.history-item{
+    background: #b8d9f9;
+    border-left: 4px solid #296eee;
+    padding: 8px 12px ;
+    margin: 6px 0;
+    border-radius: 4px;
+}

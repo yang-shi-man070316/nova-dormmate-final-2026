@@ -8,6 +8,7 @@ const historyList = document.getElementById('historyList');
 const startAsrBtn = document.getElementById('startAsrBtn');
 const asrResultText = document.getElementById('asrResultText');
 const takePhotoBtn = document.getElementById('takePhotoBtn');
+const closePhotoBtn = document.getElementById('closePhotoBtn');
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 let mediaStream = null;
@@ -43,7 +44,7 @@ analyseBtn.onclick = function(){
         advice = "环境舒适";
     }
     statusText.innerText = "当前状态：" + status;
-    adviceText.innerText = advice;
+    adviceText.innerText = "建议:"+advice;
 
     // 新增记录
     let now = new Date();
@@ -62,6 +63,7 @@ function renderHistory(){
     historyList.innerHTML = "";
     records.forEach((item,idx)=>{
         let div = document.createElement("div");
+        div.className="history-item";
         div.innerText = `${item.time} 温度:${item.temperature}℃ 湿度:${item.humidity}% 状态:${item.status}`;
         historyList.appendChild(div);
     })
@@ -115,6 +117,19 @@ takePhotoBtn.onclick = function(){
     a.click();
 }
 
+// 关闭摄像头
+closeCamBtn.onclick = function(){
+    if(mediaStream){
+        mediaStream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        mediaStream = null;
+        alert("✅摄像头已关闭");
+    }else{
+        alert("摄像头没有开启");
+    }
+}
+
+
 // TTS朗读
 const ttsBtn = document.getElementById('ttsBtn');
 ttsBtn.onclick = function(){
@@ -150,8 +165,12 @@ startAsrBtn.onclick = function() {
         if(text.includes("拍照")){
             takePhotoBtn.click();
         }
-    }
 
+         //指令3：关闭摄像头
+        if(text.includes("关闭摄像头")){
+            closeCamBtn.click();
+        }
+    }
     recognition.onerror = function(e) {
         asrResultText.innerText = "识别失败";
     }
