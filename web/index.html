@@ -21,39 +21,38 @@
             <button id="analyseBtn">分析环境</button>
             <span class="status-box" id="statusText">当前状态</span>
         </div>
+        <div class="line-item">
+            <span id="adviceText"></span>
+        </div>
 
-        <!-- ========== M3 本机交互模块 ========== -->
-<div class="card" style="margin-top:20px;">
-    <h2>本机交互</h2>
-    <!-- Camera 摄像头拍照 -->
-    <div>
-        <h3>摄像头快照</h3>
-        <video id="video" width="320" height="240" autoplay playsinline  muted style="border:1px solid #ccc;"></video>
-        <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
-        <br>
-        <button id="openCameraBtn">打开摄像头</button>
-        <button id="takePhotoBtn">拍照保存快照</button>
-    </div>
-
-    <!-- ASR语音识别 + TTS语音朗读 -->
-    <div style="margin-top:20px;">
-        <h3>语音交互</h3>
-        <button id="startAsrBtn">开始语音识别</button>
-        <p>识别结果：<span id="asrResultText"></span></p>
-        <button id="ttsReadBtn">朗读当前状态</button>
-    </div>
-</div>
-
-        <div style="font-size:18px;margin:10px 0;">
-            建议：<span id="adviceText"></span>
+        <div class="action-row">
+            <button onclick="exportCSV()">导出CSV</button>
         </div>
 
         <h3>历史记录</h3>
         <div id="historyList"></div>
-        <button id="exportCsvBtn">导出CSV</button>
+
+        <hr>
+        <h3>摄像头模块</h3>
+        <video id="video" autoplay playsinline width="400"></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+        <div class="action-row">
+            <button id="openCamBtn">打开摄像头</button>
+            <button id="takePhotoBtn">拍照保存快照</button>
+        </div>
+
+        <hr>
+        <h3>语音交互模块</h3>
+        <div class="action-row">
+            <button id="ttsBtn">朗读当前状态</button>
+            <button id="startAsrBtn">开始语音识别</button>
+        </div>
+        <div class="line-item">
+            识别结果：<span id="asrResultText"></span>
+        </div>
     </div>
 
-    <!-- 引入外部js -->
+    <!-- 引入js文件 -->
     <script src="script.js"></script>
 </body>
 </html>

@@ -4,154 +4,155 @@ const humInput = document.getElementById('humInput');
 const statusText = document.getElementById('statusText');
 const adviceText = document.getElementById('adviceText');
 const historyList = document.getElementById('historyList');
-
+// 新增按钮变量
+const startAsrBtn = document.getElementById('startAsrBtn');
+const asrResultText = document.getElementById('asrResultText');
+const takePhotoBtn = document.getElementById('takePhotoBtn');
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+let mediaStream = null;
 let records = [];
 
+// 分析环境按钮
 analyseBtn.onclick = function(){
     let tempStr = tempInput.value.trim();
     let humStr = humInput.value.trim();
 
-    // 第一层：判断是否为空（任意一个为空就触发）
     if(tempStr === "" || humStr === ""){
         alert("不能输入空值！温度和湿度都必须填写");
         return;
     }
 
-    // 两个框都有内容，再转数字
     let temp = Number(tempStr);
     let hum = Number(humStr);
-
-    // 第二层：内容存在，但不是数字（字母、汉字）
     if(isNaN(temp) || isNaN(hum)){
-        alert("请输入有效的数字！");
+        alert("温度和湿度必须输入数字！");
         return;
     }
 
-    // 第三层：数字但是超出范围
-    if(temp < 0 || temp >60 || hum <0 || hum>100){
-        alert("温湿度数值超出合理范围");
-        return;
-    }
-
-    let status, advice;
-    if(temp >= 30){
+    let status = "";
+    let advice = "";
+    if(temp >=25){
         status = "偏热";
-        advice = "注意通风降温";
-    }else if(temp >=22 && temp <30){
-        status = "正常";
-        advice = "环境舒适";
-    }else{
+        advice = "建议通风降温";
+    }else if(temp <=18){
         status = "偏冷";
         advice = "注意保暖";
+    }else{
+        status = "正常";
+        advice = "环境舒适";
     }
+    statusText.innerText = "当前状态：" + status;
+    adviceText.innerText = advice;
 
-    statusText.textContent = "当前状态：" + status;
-    adviceText.textContent = advice;
-
-    // 改成不带逗号的时间格式，不会拆分表格，WPS不容易出现#
-    let nowTime = new Date().toISOString();
+    // 新增记录
+    let now = new Date();
     let record = {
-        time: nowTime,
-        temp: temp,
-        hum: hum,
+        time: now.toLocaleString(),
+        temperature: temp,
+        humidity: hum,
         status: status
-    }
+    };
     records.push(record);
     renderHistory();
 }
 
+// 渲染历史记录
 function renderHistory(){
     historyList.innerHTML = "";
-    for(let r of records){
+    records.forEach((item,idx)=>{
         let div = document.createElement("div");
-        div.className = "history-item";
-        div.textContent = `${r.time} | ${r.temp}℃ | ${r.hum}% | ${r.status}`;
+        div.innerText = `${item.time} 温度:${item.temperature}℃ 湿度:${item.humidity}% 状态:${item.status}`;
         historyList.appendChild(div);
-    }
+    })
 }
 
-// 导出CSV
-function exportCSV() {
-    let csvContent = "time,temperature,humidity,status\n";
-    records.forEach(item => {
-        let line = `${item.time},${item.temp},${item.hum},${item.status}\n`
-        csvContent += line;
-    });
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+// CSV导出
+function exportCSV(){
+    let header = "time,temperature,humidity,status\n";
+    let csvStr = header;
+    records.forEach(item=>{
+        // 把内容里的逗号做处理，避免表格错乱
+        let t = `"${item.time}"`;
+        csvStr += `${t},${item.temperature},${item.humidity},"${item.status}"\n`;
+    })
+    let blob = new Blob([csvStr],{type:"text/csv;charset=utf-8"});
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement("a");
     a.href = url;
     a.download = "dormmate.csv";
     a.click();
     URL.revokeObjectURL(url);
 }
-document.getElementById("exportCsvBtn").addEventListener("click", exportCSV);
 
-// ========== M3 Camera 摄像头拍照 ==========
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const openCameraBtn = document.getElementById('openCameraBtn');
-const takePhotoBtn = document.getElementById('takePhotoBtn');
-
-let mediaStream = null;
-
-openCameraBtn.onclick = async function() {
-    alert("✅ 按钮点击生效，开始尝试调用摄像头");
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert("❌ 浏览器不支持摄像头API！请用Chrome/Edge，localhost访问");
-        return;
-    }
-    try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+// 摄像头打开
+const openCamBtn = document.getElementById('openCamBtn');
+openCamBtn.onclick = async function(){
+    try{
+        mediaStream = await navigator.mediaDevices.getUserMedia({video:true});
         video.srcObject = mediaStream;
-        alert("✅ 摄像头已开启");
-    } catch(err) {
-        alert("❌ 打开摄像头失败：" + err.name);
+        await video.play();
+        alert("✅摄像头已开启");
+    }catch(err){
+        alert("❌打开摄像头失败："+err.message);
     }
 }
 
-takePhotoBtn.onclick = function() {
-    alert("拍照按钮被点击");
+// 拍照
+takePhotoBtn.onclick = function(){
     if(!mediaStream){
-        alert("请先打开摄像头");
+        alert("请先打开摄像头！");
         return;
     }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const link = document.createElement('a');
-    link.download = `snapshot_${new Date().getTime()}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    const ctx = canvas.getContext('2d');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video,0,0);
+    let imgUrl = canvas.toDataURL("image/png");
+    let a = document.createElement("a");
+    a.href = imgUrl;
+    a.download = "snapshot.png";
+    a.click();
 }
 
-// ========== M3 TTS朗读 ==========
-const ttsReadBtn = document.getElementById('ttsReadBtn');
-ttsReadBtn.onclick = function() {
-    let statusText = document.getElementById('statusText').innerText;
-    const utter = new SpeechSynthesisUtterance("当前环境状态：" + statusText);
+// TTS朗读
+const ttsBtn = document.getElementById('ttsBtn');
+ttsBtn.onclick = function(){
+    let statusTextContent = statusText.innerText;
+    const utter = new SpeechSynthesisUtterance("当前环境状态：" + statusTextContent);
     utter.lang = 'zh-CN';
     speechSynthesis.speak(utter);
 }
 
-// ========== M3 ASR语音识别 ==========
-const startAsrBtn = document.getElementById('startAsrBtn');
-const asrResultText = document.getElementById('asrResultText');
-
+// ========== M3 ASR语音识别【带2条指令：朗读状态、拍照】 ==========
 startAsrBtn.onclick = function() {
     if (!('webkitSpeechRecognition' in window)) {
-        alert("❌ 浏览器不支持语音识别，请使用Edge浏览器");
+        alert("❌ 你的浏览器不支持语音识别，推荐Edge浏览器");
         return;
     }
     const recognition = new webkitSpeechRecognition();
     recognition.lang = "zh-CN";
     recognition.start();
     asrResultText.innerText = "正在聆听...";
+
     recognition.onresult = function(e) {
         const text = e.results[0][0].transcript;
         asrResultText.innerText = text;
+
+        // 指令1：朗读状态
+        if(text.includes("朗读状态")){
+            let statusTextContent = statusText.innerText;
+            const utter = new SpeechSynthesisUtterance("当前环境状态：" + statusTextContent);
+            utter.lang = 'zh-CN';
+            speechSynthesis.speak(utter);
+        }
+        // 指令2：拍照
+        if(text.includes("拍照")){
+            takePhotoBtn.click();
+        }
     }
+
     recognition.onerror = function(e) {
         asrResultText.innerText = "识别失败";
     }
 }
-
