@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>DormMate M5 - MQTT监控面板</title>
+    <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui}
+        body{background:#f5f7fa;padding:24px;}
+        .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;}
+        .status{display:flex;gap:8px;align-items:center;}
+        .green-dot{width:10px;height:10px;background:#27ae60;border-radius:50%;}
+        .card-wrap{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:24px;}
+        .card{background:#fff;padding:20px;border-radius:14px;box-shadow:0 2px 10px #00000012;}
+        .card h3{margin-bottom:16px;color:#333;}
+        .card p{margin:8px 0;font-size:16px;}
+        .card .state-text{font-weight:bold;}
+        .chart-box{background:#fff;padding:20px;border-radius:14px;margin-bottom:24px;box-shadow:0 2px 10px #00000012;}
+        #chart{width:100%;height:320px;}
+        .history{background:#fff;padding:20px;border-radius:14px;box-shadow:0 2px 10px #00000012;max-height:240px;overflow-y:auto;}
+        .history-item{padding:8px 0;border-bottom:1px solid #eee;font-size:14px;}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>DormMate M5 · MQTT监控面板</h1>
+            <div>ws://127.0.0.1:8083/mqtt · 订阅 dormmate/+/env</div>
+        </div>
+        <div class="status">
+            <span class="green-dot"></span>
+            <span id="connText">已连接</span>
+        </div>
+    </div>
+
+    <!-- 三个宿舍卡片，横向并排 -->
+    <div class="card-wrap">
+        <div class="card">
+            <h3>dorm-a</h3>
+            <p>温度：<span id="tempA">--</span> ℃</p>
+            <p>湿度：<span id="humA">--</span> %</p>
+            <p class="state-text" id="stateA"></p>
+        </div>
+        <div class="card">
+            <h3>dorm-b</h3>
+            <p>温度：<span id="tempB">--</span> ℃</p>
+            <p>湿度：<span id="humB">--</span> %</p>
+            <p class="state-text" id="stateB"></p>
+        </div>
+        <div class="card">
+            <h3>dorm-c</h3>
+            <p>温度：<span id="tempC">--</span> ℃</p>
+            <p>湿度：<span id="humC">--</span> %</p>
+            <p class="state-text" id="stateC"></p>
+        </div>
+    </div>
+
+    <div class="chart-box">
+        <h3>温湿度趋势</h3>
+        <div id="chart"></div>
+    </div>
+
+    <div class="history">
+        <h3>历史记录</h3>
+        <div id="historyList"></div>
+    </div>
+
+<script>
+// MQTT连接
+const client = mqtt.connect('ws://127.0.0.1:8083/mqtt')
+let chartDom = document.getElementById('chart')
+let myChart = echarts.init(chartDom)
+let dataList = []
+let dormData = {
+    a:{temp:0,hum:0,status:""},
+    b:{temp:0,hum:0,status:""},
+    c:{temp:0,hum:0,status:""}
+}
+
+client.on('connect', ()=>{
+    console.log("MQTT连接成功")
+    document.getElementById('connText').innerText = "已连接"
+    // 老师文档的topic：dormmate/+/env
+    client.subscribe('dormmate/+/env')
+})
+
+client.on('close', ()=>{
+    document.getElementById('connText').innerText = "断开"
+})
+
+client.on('message', (topic, payload)=>{
+    try{
+        let msg = JSON.parse(payload.toString())
+        const nodeId = msg.nodeId
+        const temp = msg.temperature
+        const hum = msg.humidity
+        const status = msg.status
+        const timeStr = msg.time
+
+        //更新对应宿舍卡片
+        if(nodeId === "dorm-a"){
+            dormData.a.temp = temp
+            dormData.a.hum = hum
+            dormData.a.status = status
+            document.getElementById("tempA").innerText = temp
+            document.getElementById("humA").innerText = hum
+            document.getElementById("stateA").innerText = status
+        }else if(nodeId === "dorm-b"){
+            dormData.b.temp = temp
+            dormData.b.hum = hum
+            dormData.b.status = status
+            document.getElementById("tempB").innerText = temp
+            document.getElementById("humB").innerText = hum
+            document.getElementById("stateB").innerText = status
+        }else if(nodeId === "dorm-c"){
+            dormData.c.temp = temp
+            dormData.c.hum = hum
+            dormData.c.status = status
+            document.getElementById("tempC").innerText = temp
+            document.getElementById("humC").innerText = hum
+            document.getElementById("stateC").innerText = status
+        }
+
+        //存入历史，更新图表
+        dataList.push({time:timeStr,temp,hum})
+        if(dataList.length>8) dataList.shift()
+        renderChart()
+        addHistory(timeStr,nodeId,temp,hum,status)
+    }catch(err){
+        console.error("JSON解析失败",err)
+    }
+})
+
+function renderChart(){
+    const xData = dataList.map(i=>i.time)
+    const tempData = dataList.map(i=>i.temp)
+    const humData = dataList.map(i=>i.hum)
+    const option = {
+        tooltip:{trigger:"axis"},
+        legend:{data:["温度(℃)","湿度(%)"]},
+        xAxis:{type:"category",data:xData},
+        yAxis:[{},{axisLabel:{formatter:"{value}%"}}],
+        series:[
+            {name:"温度(℃)",type:"line",data:tempData},
+            {name:"湿度(%)",type:"line",yAxisIndex:1,data:humData}
+        ]
+    }
+    myChart.setOption(option)
+}
+
+function addHistory(time,node,temp,hum,state){
+    const wrap = document.getElementById("historyList")
+    const div = document.createElement('div')
+    div.className = "history-item"
+    div.innerText = `${time} ${node} ${temp}℃ | ${hum}% | ${state}`
+    wrap.prepend(div)
+}
+
+window.onresize = ()=>myChart.resize()
+</script>
+</body>
+</html>

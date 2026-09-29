@@ -1,13 +1,13 @@
 {
   "pages": [
-    "pages/index/index"
+    "pages/index/index",
+    "pages/monitor/monitor"
   ],
   "window": {
     "navigationBarTextStyle": "black",
     "navigationStyle": "custom"
   },
   "style": "v2",
-  
   "rendererOptions": {
     "skyline": {
       "defaultDisplayBlock": true,

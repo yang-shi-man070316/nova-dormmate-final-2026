@@ -1,3 +1,6 @@
+const mqtt = require('../../utils/mqtt.min.js')
+let client = null;
+let mqttConnected = false;
 // index.js
 Page({
   data: {
@@ -40,9 +43,54 @@ Page({
     historyHum: []
   },
 
+  // connectMqtt() {
+  //   const wsUrl = 'ws://127.0.0.1:8083/mqtt'
+  //   client = mqtt.connect(wsUrl)
+
+  //   // 连接成功
+  //   client.on('connect', () => {
+  //     console.log("MQTT连接成功，订阅 dormmate/+/env")
+  //     client.subscribe('dormmate/+/env')
+  //   })
+
+  //   // 收到消息
+  //   client.on('message', (topic, payload) => {
+  //     try{
+  //       const msg = JSON.parse(payload.toString())
+  //       const nodeId = msg.nodeId
+  //       const temp = msg.temperature
+  //       const hum = msg.humidity
+  //       const timeStr = msg.time
+
+  //       // 自动判断环境状态
+  //       let status = ""
+  //       if(temp > 28) status = "偏热"
+  //       else if(temp < 20) status = "偏凉"
+  //       else status = "正常"
+
+  //       this.setData({
+  //         temperature: temp,
+  //         humidity: hum,
+  //         status: status,
+  //         advice: "",
+  //         time: timeStr
+  //       })
+  //     }catch(err){
+  //       console.error("JSON解析失败", err)
+  //     }
+  //   })
+
+  //   // 连接报错
+  //   client.on('error', (err) => {
+  //     console.log("MQTT连接错误", err)
+  //   })
+  // },
+
   onLoad() {
     // 页面加载，初始化加载当前宿舍数据
     this.loadDormData(this.data.currentDorm);
+    //新增：启动MQTT连接
+    // this.connectMqtt();
   },
 
   // 切换宿舍按钮
@@ -192,6 +240,7 @@ Page({
     ctx.draw();
   },
 
+  
   // 输入框绑定事件
   onTempInput(e){
     this.setData({temperature:e.detail.value})
