@@ -7,7 +7,7 @@
     "navigationStyle": "custom"
   },
   "style": "v2",
-  "renderer": "skyline",
+  
   "rendererOptions": {
     "skyline": {
       "defaultDisplayBlock": true,
@@ -20,5 +20,10 @@
   },
   "componentFramework": "glass-easel",
   "sitemapLocation": "sitemap.json",
-  "lazyCodeLoading": "requiredComponents"
+  "lazyCodeLoading": "requiredComponents",
+  "permission": {
+    "socket": {
+      "desc": "用于MQTT实时获取宿舍环境数据"
+    }
+  }
 }

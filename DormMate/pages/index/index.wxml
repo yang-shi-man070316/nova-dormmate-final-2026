@@ -1,18 +1,41 @@
-<view class="card">
-  <view class="title">DormMate</view>
-
-  <view class="line-item">
+<view class="page">
+  <!-- 1.温湿度输入区域 -->
+  <view class="input-area">
     <text>温度：</text>
-    <input type="text" bindinput="onTempInput" placeholder="输入温度"/>
+    <input placeholder="输入温度" bindinput="onTempInput" value="{{temperature}}"/>
     <text>℃</text>
   </view>
-  <view class="line-item">
+  <view class="input-area">
     <text>湿度：</text>
-    <input type="text" bindinput="onHumInput" placeholder="输入湿度"/>
+    <input placeholder="输入湿度" bindinput="onHumInput" value="{{humidity}}"/>
     <text>%</text>
   </view>
 
-  <button bindtap="analyseEnv">分析环境</button>
-  <view class="status">{{status}}</view>
-  <view class="advice">{{advice}}</view>
+  <!-- 2.分析环境按钮 增加class="primary-btn" -->
+  <button class="primary-btn" bindtap="analyseEnv">分析环境</button>
+
+  <!-- 3.状态文字提示 -->
+  <view class="result-tip">
+    <view class="status-text">{{status}}</view>
+    <view class="advice-text">{{advice}}</view>
+  </view>
+
+  <!-- 4.宿舍切换按钮 -->
+  <view class="btn-group">
+    <button bindtap="switchDorm" data-dorm="dorm-a">宿舍A</button>
+    <button bindtap="switchDorm" data-dorm="dorm-b">宿舍B</button>
+    <button bindtap="switchDorm" data-dorm="dorm-c">宿舍C</button>
+  </view>
+
+  <!-- 5.宿舍数据卡片，修复DORM标题渲染 -->
+  <view class="card">
+    <view class="title">DORM-{{currentDorm}}</view>
+    <view class="line-item">温度：{{temperature}} ℃</view>
+    <view class="line-item">湿度：{{humidity}} %RH</view>
+    <view class="line-item">状态：{{status}}</view>
+    <view class="line-item">更新时间：{{time}}</view>
+  </view>
+
+  <!-- 6.图表画布 -->
+  <canvas canvas-id="chartCanvas" class="chart-box"></canvas>
 </view>
