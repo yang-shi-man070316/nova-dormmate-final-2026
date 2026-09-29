@@ -2,28 +2,67 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>DormMate宿舍 M6</title>
+<title>DormMate宿舍环境监控</title>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mqtt@4.3.7/dist/mqtt.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{padding:24px;font-family:system-ui;background:#f7f9fc;}
+body{padding:24px;font-family:system-ui;background:#f3f7fa;}
 .wrap{display:flex;gap:20px;align-items:flex-start;}
-#scene-box{width:950px;height:520px;border:1px solid #dbe4ee;background:#ffffff;box-shadow:0 12px 34px rgba(31,58,95,0.12);border-radius:12px;}
-.right-panel{width:360px;background:#fff;border-radius:12px;padding:20px;box-shadow:0 12px 34px rgba(31,58,95,0.12);}
-#mqtt-status{margin-bottom:12px;font-size:18px;font-weight:bold;}
-#info{margin-bottom:14px;font-size:20px;font-weight:800;color:#1f3a5f;}
+#scene-box{width:920px;height:500px;border:1px solid #d8e2ec;background:#ffffff;border-radius:12px;box-shadow:0 8px 22px rgba(28,52,90,0.08);}
+.right-panel{width:340px;background:#fff;border-radius:12px;padding:20px;box-shadow:0 8px 22px rgba(28,52,90,0.08);}
+#mqtt-status{margin-bottom:12px;font-size:16px;font-weight:bold;}
+#info{margin-bottom:14px;font-size:18px;font-weight:600;color:#223857;}
 .row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
-button{padding:10px 18px;border:none;border-radius:8px;background:#2b7bdd;color:white;font-size:16px;cursor:pointer;transition:0.2s;}
-button:hover{background:#1f68c4;transform:translateY(-2px);}
-.data-item{font-size:17px;margin:10px 0;padding:8px;background:#f7f9fc;border-radius:8px;}
-.alert-box{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#ff4d4f;color:#fff;padding:14px 24px;border-radius:10px;display:none;z-index:999;font-size:18px;box-shadow:0 4px 16px rgba(255,77,79,0.3);}
-.title{font-size:20px;font-weight:bold;margin-bottom:16px;color:#1f3a5f;border-bottom:1px solid #eee;padding-bottom:8px;}
+button{padding:10px 16px;border:none;border-radius:8px;background:#3478d9;color:white;font-size:15px;cursor:pointer;transition:0.2s;}
+button:hover{background:#2460b8;}
+.data-item{font-size:16px;margin:10px 0;padding:8px;background:#f4f7fb;border-radius:8px;}
+
+/* 告警列表：放在右侧面板内部，不是页面顶部，和同学区分开 */
+.alert-list-title{
+  font-size:17px;
+  font-weight:bold;
+  margin-bottom:10px;
+  color:#223857;
+}
+.alert-item{
+  border:1px solid #e2e8f0;
+  border-radius:8px;
+  padding:10px;
+  margin-bottom:8px;
+}
+.alert-dorm-name{
+  font-weight:bold;
+  font-size:15px;
+}
+.alert-desc{
+  font-size:13px;
+  color:#444;
+  margin:4px 0;
+}
+.priority-tag{
+  display:inline-block;
+  padding:2px 7px;
+  border-radius:10px;
+  color:#fff;
+  font-size:12px;
+  margin-left:6px;
+}
+.priority-high{
+  background:#c82423;
+}
+.priority-middle{
+  background:#e67e22;
+}
+.alert-btn{
+  padding:3px 8px;
+  font-size:13px;
+  background:#2b85cc;
+  margin-top:4px;
+}
 </style>
 </head>
 <body>
-<div class="alert-box" id="alert">⚠️环境超标，请留意！</div>
-
 <div class="wrap">
     <div class="left">
         <div id="mqtt-status"></div>
@@ -31,9 +70,13 @@ button:hover{background:#1f68c4;transform:translateY(-2px);}
         <div id="scene-box"></div>
     </div>
 
-    <!-- 右侧面板 -->
+    <!-- 右侧面板：最上方放告警列表，下面是宿舍按钮、数据 -->
     <div class="right-panel">
-        <div class="title">宿舍环境监控</div>
+        <div class="alert-list-title">告警处置列表</div>
+        <div id="alertListBox">
+            <!-- JS动态填充告警条目 -->
+        </div>
+        <hr style="margin:16px 0;border:0;border-top:1px solid #eee;">
         <div class="row">
             <button onclick="switchDorm('DORM-A')">宿舍A</button>
             <button onclick="switchDorm('DORM-B')">宿舍B</button>
@@ -50,27 +93,106 @@ button:hover{background:#1f68c4;transform:translateY(-2px);}
 </div>
 
 <script>
+const dormInfo = {
+  "DORM-A": {
+    temp: "",
+    hum: "",
+    status: "正常",
+    continuousErrCount: 0,
+    errStartTime: null,
+    maxTemp: -999,
+    minTemp: 999,
+    maxHum: -999,
+    minHum: 999
+  },
+  "DORM-B": {
+    temp: "",
+    hum: "",
+    status: "正常",
+    continuousErrCount: 0,
+    errStartTime: null,
+    maxTemp: -999,
+    minTemp: 999,
+    maxHum: -999,
+    minHum: 999
+  },
+  "DORM-C": {
+    temp: "",
+    hum: "",
+    status: "正常",
+    continuousErrCount: 0,
+    errStartTime: null,
+    maxTemp: -999,
+    minTemp: 999,
+    maxHum: -999,
+    minHum: 999
+  }
+}
+
 let scene, camera, renderer;
 let fanMesh, windowMesh;
 let fanRotateSpeed = 0;
 let floorMesh;
 let currentDorm = "DORM-A";
-// 存储极值
-let historyData = {
-    maxTemp: -999,
-    minTemp: 999,
-    maxHum: -999,
-    minHum: 999
-};
+
+// 计算告警优先级
+function getPriority(dormItem){
+  if(!dormItem.errStartTime) return null;
+  const dur = Date.now() - dormItem.errStartTime;
+  if(dur > 30000) return "high";
+  return "middle";
+}
+
+// 渲染告警列表（A1核心功能）
+function renderAlertList(){
+  const alertBox = document.getElementById("alertListBox");
+  const errDorms = Object.entries(dormInfo).filter(([k,v])=>v.status !== "正常");
+  // 按异常时长降序排序（优先级从高到低）
+  errDorms.sort((a,b)=>{
+    const durA = Date.now() - a[1].errStartTime;
+    const durB = Date.now() - b[1].errStartTime;
+    return durB - durA;
+  })
+
+  if(errDorms.length ===0){
+    alertBox.innerHTML = "<div style='color:#666;font-size:14px'>暂无告警，全部宿舍环境正常</div>";
+    return;
+  }
+
+  let htmlStr = "";
+  for(let [dormId,data] of errDorms){
+    const priority = getPriority(data);
+    const durSec = Math.floor((Date.now() - data.errStartTime)/1000);
+    let priorityText = priority==="high"?"高":"中";
+    let priorityClass = priority==="high"?"priority-high":"priority-middle";
+    let adviceText = "";
+    if(data.status === "偏热"){
+      adviceText = "温度偏高，建议开启空调或风扇降温";
+    }else if(data.status === "偏湿"){
+      adviceText = "湿度过高，建议开启除湿机";
+    }
+
+    htmlStr += `
+    <div class="alert-item" onclick="switchDorm('${dormId}')">
+      <div class="alert-dorm-name">${dormId.toLowerCase()} ${data.status} (${data.temp}℃ / ${data.hum}%)
+        <span class="priority-tag ${priorityClass}">优先级:${priorityText}</span>
+      </div>
+      <div class="alert-desc">连续异常 ${durSec}秒 | 累计${data.continuousErrCount}次异常<br/>${adviceText}</div>
+      <button class="alert-btn">更换处置方案</button>
+    </div>
+    `
+  }
+  alertBox.innerHTML = htmlStr;
+}
 
 function init3DScene() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0xfff7ea);
-    camera = new THREE.PerspectiveCamera(40, 950 / 520, 0.1, 1000);
+    camera = new THREE.PerspectiveCamera(40, 920 / 500, 0.1, 1000);
     camera.position.set(10, 6, 11);
     camera.lookAt(0, 1, 0);
     renderer = new THREE.WebGLRenderer({antialias:true});
-    renderer.setSize(950, 520);
+    renderer.setSize(920, 500);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById("scene-box").appendChild(renderer.domElement);
@@ -236,6 +358,7 @@ function init3DScene() {
     scene.add(sill);
 
     animate();
+    setInterval(renderAlertList,1000);
 }
 
 function animate() {
@@ -245,28 +368,44 @@ function animate() {
 }
 
 function updateScene(nodeId, status, temp, hum) {
+    const node = dormInfo[nodeId];
+    node.temp = temp;
+    node.hum = hum;
+    const oldStatus = node.status;
+    node.status = status;
+
+    if(status !== "正常"){
+        if(oldStatus === "正常"){
+            node.errStartTime = Date.now();
+        }
+        node.continuousErrCount +=1;
+    }else{
+        node.continuousErrCount = 0;
+        node.errStartTime = null;
+    }
+
+    if(temp !== undefined && hum !== undefined){
+        if(temp > node.maxTemp) node.maxTemp = temp;
+        if(temp < node.minTemp) node.minTemp = temp;
+        if(hum > node.maxHum) node.maxHum = hum;
+        if(hum < node.minHum) node.minHum = hum;
+    }
+
     currentDorm = nodeId;
     document.getElementById("info").innerText = `当前宿舍：${nodeId} | 状态：${status}`;
     if(temp !== undefined && hum !== undefined){
         document.getElementById("tempVal").innerText = temp;
         document.getElementById("humVal").innerText = hum;
-        //更新极值
-        if(temp > historyData.maxTemp) historyData.maxTemp = temp;
-        if(temp < historyData.minTemp) historyData.minTemp = temp;
-        if(hum > historyData.maxHum) historyData.maxHum = hum;
-        if(hum < historyData.minHum) historyData.minHum = hum;
-        document.getElementById("maxTemp").innerText = historyData.maxTemp;
-        document.getElementById("minTemp").innerText = historyData.minTemp;
-        document.getElementById("maxHum").innerText = historyData.maxHum;
-        document.getElementById("minHum").innerText = historyData.minHum;
+        document.getElementById("maxTemp").innerText = node.maxTemp;
+        document.getElementById("minTemp").innerText = node.minTemp;
+        document.getElementById("maxHum").innerText = node.maxHum;
+        document.getElementById("minHum").innerText = node.minHum;
 
         let comfortText = "";
         if(temp >=20 && temp <=26 && hum >=40 && hum <=65){
             comfortText = "舒适👍";
-            document.getElementById("alert").style.display = "none";
         }else{
             comfortText = "环境异常⚠️";
-            document.getElementById("alert").style.display = "block";
         }
         document.getElementById("comfort").innerText = comfortText;
     }
@@ -285,31 +424,40 @@ function updateScene(nodeId, status, temp, hum) {
         windowMesh.material.color.set(0x1565a7);
         windowMesh.material.emissiveIntensity = 0.1;
     }
+    renderAlertList();
 }
 
 function switchDorm(dormId){
     currentDorm = dormId;
     document.getElementById("info").innerText = `当前宿舍：${dormId} | 等待数据`;
+    const node = dormInfo[dormId];
+    document.getElementById("tempVal").innerText = node.temp ?? "--";
+    document.getElementById("humVal").innerText = node.hum ?? "--";
+    document.getElementById("maxTemp").innerText = node.maxTemp;
+    document.getElementById("minTemp").innerText = node.minTemp;
+    document.getElementById("maxHum").innerText = node.maxHum;
+    document.getElementById("minHum").innerText = node.minHum;
+    document.getElementById("comfort").innerText = node.status === "正常" ? "舒适👍" : "环境异常⚠️";
 }
 
-// ==========只修改了这一段MQTT代码，其余全部原样保留==========
+// MQTT连接
 const mqttUrl = 'ws://127.0.0.1:8083/mqtt';
 const client = mqtt.connect(mqttUrl);
 const mqttDom = document.getElementById("mqtt-status");
 
 client.on('connect', () => {
     console.log("MQTT连接成功");
-    mqttDom.innerText = `✅已连接 ${mqttUrl}`;
-    mqttDom.style.color = "#009944";
+    mqttDom.innerText = `✅已连接 Broker (ws://127.0.0.1:8083)`;
+    mqttDom.style.color = "#008833";
     client.subscribe('dormmate/+/env');
 });
 client.on('close',()=>{
-    mqttDom.innerText = `❌broken (${mqttUrl})`;
-    mqttDom.style.color = "#dd2222";
+    mqttDom.innerText = `❌MQTT断开`;
+    mqttDom.style.color = "#bb2222";
 })
 client.on('error',()=>{
-    mqttDom.innerText = `❌broken (${mqttUrl})`;
-    mqttDom.style.color = "#dd2222";
+    mqttDom.innerText = `❌MQTT连接失败`;
+    mqttDom.style.color = "#bb2222";
 })
 client.on('message', function(topic, payload) {
     try {
