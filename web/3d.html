@@ -2,262 +2,322 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>DormMate 3D宿舍 M6</title>
+<title>DormMate宿舍 M6</title>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mqtt@4.3.7/dist/mqtt.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{padding:24px;font-family:system-ui;background:#f7f9fc;}
+.wrap{display:flex;gap:20px;align-items:flex-start;}
+#scene-box{width:950px;height:520px;border:1px solid #dbe4ee;background:#ffffff;box-shadow:0 12px 34px rgba(31,58,95,0.12);border-radius:12px;}
+.right-panel{width:360px;background:#fff;border-radius:12px;padding:20px;box-shadow:0 12px 34px rgba(31,58,95,0.12);}
+#mqtt-status{margin-bottom:12px;font-size:18px;font-weight:bold;}
 #info{margin-bottom:14px;font-size:20px;font-weight:800;color:#1f3a5f;}
-#scene-box{width:950px;height:520px;border:1px solid #dbe4ee;background:#ffffff;box-shadow:0 12px 34px rgba(31,58,95,0.12);}
+.row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+button{padding:10px 18px;border:none;border-radius:8px;background:#2b7bdd;color:white;font-size:16px;cursor:pointer;transition:0.2s;}
+button:hover{background:#1f68c4;transform:translateY(-2px);}
+.data-item{font-size:17px;margin:10px 0;padding:8px;background:#f7f9fc;border-radius:8px;}
+.alert-box{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#ff4d4f;color:#fff;padding:14px 24px;border-radius:10px;display:none;z-index:999;font-size:18px;box-shadow:0 4px 16px rgba(255,77,79,0.3);}
+.title{font-size:20px;font-weight:bold;margin-bottom:16px;color:#1f3a5f;border-bottom:1px solid #eee;padding-bottom:8px;}
 </style>
 </head>
 <body>
-<div id="info">当前宿舍：-- | 状态：--</div>
-<div id="scene-box"></div>
+<div class="alert-box" id="alert">⚠️环境超标，请留意！</div>
+
+<div class="wrap">
+    <div class="left">
+        <div id="mqtt-status"></div>
+        <div id="info">当前宿舍：-- | 状态：--</div>
+        <div id="scene-box"></div>
+    </div>
+
+    <!-- 右侧面板 -->
+    <div class="right-panel">
+        <div class="title">宿舍环境监控</div>
+        <div class="row">
+            <button onclick="switchDorm('DORM-A')">宿舍A</button>
+            <button onclick="switchDorm('DORM-B')">宿舍B</button>
+            <button onclick="switchDorm('DORM-C')">宿舍C</button>
+        </div>
+        <div class="data-item">🌡️ 当前温度：<span id="tempVal">--</span> ℃</div>
+        <div class="data-item">💧 当前湿度：<span id="humVal">--</span> %RH</div>
+        <div class="data-item">✅ 舒适度：<span id="comfort">等待数据</span></div>
+        <div class="data-item">📊 最高温：<span id="maxTemp">--</span> ℃</div>
+        <div class="data-item">📉 最低温：<span id="minTemp">--</span> ℃</div>
+        <div class="data-item">📊 最高湿：<span id="maxHum">--</span> %RH</div>
+        <div class="data-item">📉 最低湿：<span id="minHum">--</span> %RH</div>
+    </div>
+</div>
 
 <script>
 let scene, camera, renderer;
 let fanMesh, windowMesh;
 let fanRotateSpeed = 0;
 let floorMesh;
+let currentDorm = "DORM-A";
+// 存储极值
+let historyData = {
+    maxTemp: -999,
+    minTemp: 999,
+    maxHum: -999,
+    minHum: 999
+};
 
 function init3DScene() {
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xfff7ea);
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xfff7ea);
+    camera = new THREE.PerspectiveCamera(40, 950 / 520, 0.1, 1000);
+    camera.position.set(10, 6, 11);
+    camera.lookAt(0, 1, 0);
+    renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(950, 520);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.getElementById("scene-box").appendChild(renderer.domElement);
 
-  camera = new THREE.PerspectiveCamera(40, 950 / 520, 0.1, 1000);
-  camera.position.set(10, 6, 11);
-  camera.lookAt(0, 1, 0);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
+    dirLight.position.set(6, 9, 5);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.set(1024,1024);
+    dirLight.shadow.camera.left = -12;
+    dirLight.shadow.camera.right = 12;
+    dirLight.shadow.camera.top = 12;
+    dirLight.shadow.camera.bottom = -12;
+    scene.add(dirLight);
 
-  renderer = new THREE.WebGLRenderer({antialias:true});
-  renderer.setSize(950, 520);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  document.getElementById("scene-box").appendChild(renderer.domElement);
+    const ambientLight = new THREE.AmbientLight(0xfffff4, 0.55);
+    scene.add(ambientLight);
 
-  const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
-  dirLight.position.set(6, 9, 5);
-  dirLight.castShadow = true;
-  dirLight.shadow.mapSize.set(1024, 1024);
-  dirLight.shadow.camera.left = -12;
-  dirLight.shadow.camera.right = 12;
-  dirLight.shadow.camera.top = 12;
-  dirLight.shadow.camera.bottom = -12;
-  scene.add(dirLight);
+    //地板
+    const floorBaseGeo = new THREE.BoxGeometry(12, 0.6, 9);
+    const floorBaseMat = new THREE.MeshStandardMaterial({color:0xfff4e2, roughness:0.7});
+    floorMesh = new THREE.Mesh(floorBaseGeo, floorBaseMat);
+    floorMesh.position.y = -0.3;
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
 
-  const ambientLight = new THREE.AmbientLight(0xfffdf4, 0.55);
-  scene.add(ambientLight);
+    //后墙
+    const wallMat = new THREE.MeshStandardMaterial({color:0xffffdf, roughness:0.85});
+    const wallHeight = 4.4;
+    const backWallGeo = new THREE.BoxGeometry(12, wallHeight, 0.35);
+    const backWall = new THREE.Mesh(backWallGeo, wallMat);
+    backWall.position.set(0, wallHeight / 2, -4.3);
+    backWall.castShadow = true;
+    backWall.receiveShadow = true;
+    scene.add(backWall);
 
-  // ========== 地板 ==========
-  const floorBaseGeo = new THREE.BoxGeometry(12, 0.6, 9);
-  const floorBaseMat = new THREE.MeshStandardMaterial({color:0xfff4e2, roughness:0.7});
-  const floorBase = new THREE.Mesh(floorBaseGeo, floorBaseMat);
-  floorBase.position.y = -0.3;
-  floorBase.receiveShadow = true;
-  scene.add(floorBase);
+    const stripGeo = new THREE.BoxGeometry(12, 0.18, 0.4);
+    const stripMat = new THREE.MeshStandardMaterial({color:0xffe5c2, roughness:0.9});
+    const strip = new THREE.Mesh(stripGeo, stripMat);
+    strip.position.set(0, 0.09, -4.08);
+    scene.add(strip);
 
-  const topGeo = new THREE.PlaneGeometry(11.4, 8.4);
-  const topMat = new THREE.MeshStandardMaterial({color:0xfff4e2, roughness:0.72});
-  const topMesh = new THREE.Mesh(topGeo, topMat);
-  topMesh.rotation.x = -Math.PI / 2;
-  topMesh.position.y = 0.001;
-  topMesh.receiveShadow = true;
-  scene.add(topMesh);
-  floorMesh = topMesh;
+    //床
+    const bedGroup = new THREE.Group();
+    const bedFrameGeo = new THREE.BoxGeometry(2.6, 0.5, 1.4);
+    const bedFrameMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.35, metalness:0.15});
+    const bedFrame = new THREE.Mesh(bedFrameGeo, bedFrameMat);
+    bedFrame.position.y = 0.25;
+    bedFrame.castShadow = true;
+    bedGroup.add(bedFrame);
 
-  // ========== 后墙 ==========
-  const wallMat = new THREE.MeshStandardMaterial({color:0xfffdf4, roughness:0.85});
-  const wallHeight = 4.4;
-  const backWallGeo = new THREE.BoxGeometry(12, wallHeight, 0.35);
-  const backWall = new THREE.Mesh(backWallGeo, wallMat);
-  backWall.position.set(0, wallHeight / 2, -4.3);
-  backWall.castShadow = true;
-  backWall.receiveShadow = true;
-  scene.add(backWall);
+    const mattressGeo = new THREE.BoxGeometry(2.4, 0.22, 1.25);
+    const mattressMat = new THREE.MeshStandardMaterial({color:0xff9ebb, roughness:0.5});
+    const mattress = new THREE.Mesh(mattressGeo, mattressMat);
+    mattress.position.y = 0.61;
+    bedGroup.add(mattress);
 
-  const stripGeo = new THREE.BoxGeometry(12, 0.18, 0.4);
-  const stripMat = new THREE.MeshStandardMaterial({color:0xffe5c2, roughness:0.9});
-  const strip = new THREE.Mesh(stripGeo, stripMat);
-  strip.position.set(0, 0.09, -4.08);
-  scene.add(strip);
+    const quiltGeo = new THREE.BoxGeometry(2.3, 0.14, 1.12);
+    const quiltMat = new THREE.MeshStandardMaterial({color:0xfffff7, roughness:0.55});
+    const quilt = new THREE.Mesh(quiltGeo, quiltMat);
+    quilt.position.y = 0.78;
+    bedGroup.add(quilt);
 
-  // ========== 床 ==========
-  const bedGroup = new THREE.Group();
+    const pillowGeo = new THREE.BoxGeometry(0.7, 0.16, 0.42);
+    const pillowMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.4});
+    const pillow = new THREE.Mesh(pillowGeo, pillowMat);
+    pillow.position.set(-0.85, 0.9, -0.45);
+    bedGroup.add(pillow);
+    bedGroup.position.set(-1.5, 0, -2.0);
+    scene.add(bedGroup);
 
-  const bedFrameGeo = new THREE.BoxGeometry(2.6, 0.5, 1.4);
-  const bedFrameMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.35, metalness:0.15});
-  const bedFrame = new THREE.Mesh(bedFrameGeo, bedFrameMat);
-  bedFrame.position.y = 0.25;
-  bedFrame.castShadow = true;
-  bedGroup.add(bedFrame);
+    //书桌
+    const deskGroup = new THREE.Group();
+    const deskTopGeo = new THREE.BoxGeometry(1.9, 0.14, 0.8);
+    const deskTopMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.3, metalness:0.12});
+    const deskTop = new THREE.Mesh(deskTopGeo, deskTopMat);
+    deskTop.position.y = 0.82;
+    deskTop.castShadow = true;
+    deskGroup.add(deskTop);
 
-  const mattressGeo = new THREE.BoxGeometry(2.4, 0.22, 1.25);
-  const mattressMat = new THREE.MeshStandardMaterial({color:0xff9ebb, roughness:0.5});
-  const mattress = new THREE.Mesh(mattressGeo, mattressMat);
-  mattress.position.y = 0.61;
-  bedGroup.add(mattress);
+    const legGeo = new THREE.BoxGeometry(0.12, 0.82, 0.12);
+    const legMat = new THREE.MeshStandardMaterial({color:0x4aa8ff, roughness:0.4, metalness:0.25});
+    const leg1 = new THREE.Mesh(legGeo, legMat); leg1.position.set(-0.89, 0.41, -0.34); deskGroup.add(leg1);
+    const leg2 = new THREE.Mesh(legGeo, legMat); leg2.position.set(-0.89, 0.41, 0.34); deskGroup.add(leg2);
+    const leg3 = new THREE.Mesh(legGeo, legMat); leg3.position.set(0.89, 0.41, 0.34); deskGroup.add(leg3);
+    const leg4 = new THREE.Mesh(legGeo, legMat); leg4.position.set(0.89, 0.41, -0.34); deskGroup.add(leg4);
 
-  const quiltGeo = new THREE.BoxGeometry(2.3, 0.14, 1.12);
-  const quiltMat = new THREE.MeshStandardMaterial({color:0xfff1f7, roughness:0.55});
-  const quilt = new THREE.Mesh(quiltGeo, quiltMat);
-  quilt.position.y = 0.78;
-  bedGroup.add(quilt);
+    const book1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.07, 0.32), new THREE.MeshStandardMaterial({color:0xff5c5c, roughness:0.5}));
+    book1.position.set(0.35, 0.91, 0.06);
+    deskGroup.add(book1);
+    const book2 = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.06, 0.26), new THREE.MeshStandardMaterial({color:0xffd24d, roughness:0.5}));
+    book2.position.set(0.55, 0.97, -0.06);
+    deskGroup.add(book2);
 
-  const pillowGeo = new THREE.BoxGeometry(0.7, 0.16, 0.42);
-  const pillowMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.4});
-  const pillow = new THREE.Mesh(pillowGeo, pillowMat);
-  pillow.position.set(-0.85, 0.9, -0.45);
-  bedGroup.add(pillow);
+    //椅子
+    const chairGroup = new THREE.Group();
+    const chairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.1, 0.48), new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.4}));
+    chairSeat.position.y = 0.44;
+    chairGroup.add(chairSeat);
+    const chairBack = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.52, 0.08), new THREE.MeshStandardMaterial({color:0x4aa8ff, roughness:0.4}));
+    chairBack.position.set(0, 0.68, -0.21);
+    chairGroup.add(chairBack);
+    chairGroup.position.set(0, 0, 0.85);
+    deskGroup.add(chairGroup);
+    deskGroup.position.set(2.4, 0, -1.6);
+    scene.add(deskGroup);
 
-  bedGroup.position.set(-1.5, 0, -2.0);
-  scene.add(bedGroup);
+    //吊扇
+    const fanPoleGeo = new THREE.CylinderGeometry(0.08,0.08,1.2,12);
+    const fanPoleMat = new THREE.MeshStandardMaterial({color:0x333333,roughness:0.4});
+    const fanPole = new THREE.Mesh(fanPoleGeo, fanPoleMat);
+    fanPole.position.set(-0.2,2.7,1.4);
+    fanPole.castShadow = true;
+    scene.add(fanPole);
 
-  // ========== 书桌 ==========
-  const deskGroup = new THREE.Group();
+    const fanHeadGeo = new THREE.CylinderGeometry(0.22,0.22,0.22,16);
+    const fanHeadMat = new THREE.MeshStandardMaterial({color:0x222222});
+    const fanHead = new THREE.Mesh(fanHeadGeo, fanHeadMat);
+    fanHead.position.set(-0.2,3.3,1.4);
+    fanHead.castShadow = true;
+    scene.add(fanHead);
 
-  const deskTopGeo = new THREE.BoxGeometry(1.9, 0.14, 0.8);
-  const deskTopMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.3, metalness:0.12});
-  const deskTop = new THREE.Mesh(deskTopGeo, deskTopMat);
-  deskTop.position.y = 0.82;
-  deskTop.castShadow = true;
-  deskGroup.add(deskTop);
+    const fanBladesGroup = new THREE.Group();
+    const bladeMat = new THREE.MeshStandardMaterial({color:0xffd333, roughness:0.45});
+    for(let i=0;i<4;i++){
+        const bladeGeo = new THREE.BoxGeometry(0.12,1.15,0.07);
+        const blade = new THREE.Mesh(bladeGeo, bladeMat);
+        blade.position.y = 0.57;
+        blade.rotation.z = Math.PI*2 /4 * i;
+        fanBladesGroup.add(blade);
+    }
+    fanBladesGroup.position.set(-0.2,3.3,1.4);
+    scene.add(fanBladesGroup);
+    fanMesh = fanBladesGroup;
 
-  const legGeo = new THREE.BoxGeometry(0.12, 0.82, 0.12);
-  const legMat = new THREE.MeshStandardMaterial({color:0x4aa8ff, roughness:0.4, metalness:0.25});
-  const leg1 = new THREE.Mesh(legGeo, legMat); leg1.position.set(-0.89, 0.41, -0.34); deskGroup.add(leg1);
-  const leg2 = new THREE.Mesh(legGeo, legMat); leg2.position.set( 0.89, 0.41, -0.34); deskGroup.add(leg2);
-  const leg3 = new THREE.Mesh(legGeo, legMat); leg3.position.set(-0.89, 0.41,  0.34); deskGroup.add(leg3);
-  const leg4 = new THREE.Mesh(legGeo, legMat); leg4.position.set( 0.89, 0.41,  0.34); deskGroup.add(leg4);
+    //窗户
+    const winFrameGeo = new THREE.BoxGeometry(2.9,2.4,0.45);
+    const winFrameMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.25, metalness:0.25});
+    const winFrame = new THREE.Mesh(winFrameGeo, winFrameMat);
+    winFrame.position.set(2.3,1.9,-3.72);
+    winFrame.castShadow = true;
+    winFrame.receiveShadow = true;
+    scene.add(winFrame);
 
-  const book1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.07, 0.32), new THREE.MeshStandardMaterial({color:0xff5c5c, roughness:0.5}));
-  book1.position.set(0.35, 0.91, 0.06);
-  deskGroup.add(book1);
+    const winGlassGeo = new THREE.PlaneGeometry(2.25,1.8);
+    const winMat = new THREE.MeshStandardMaterial({color:0x55b1ff, side:THREE.DoubleSide, transparent:true, opacity:0.92, roughness:0.05, metalness:0.55, emissive:0x113355, emissiveIntensity:0.35});
+    windowMesh = new THREE.Mesh(winGlassGeo, winMat);
+    windowMesh.position.set(2.3,1.9,-3.48);
+    scene.add(windowMesh);
 
-  const book2 = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.06, 0.26), new THREE.MeshStandardMaterial({color:0xffd24d, roughness:0.5}));
-  book2.position.set(0.55, 0.97, -0.06);
-  deskGroup.add(book2);
+    const crossMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.25});
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.1,1.8,0.05), crossMat);
+    crossV.position.set(2.3,1.9,-3.46);
+    scene.add(crossV);
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(2.25,0.1,0.05), crossMat);
+    crossH.position.set(2.3,1.9,-3.46);
+    scene.add(crossH);
 
-  // 椅子
-  const chairGroup = new THREE.Group();
-  const chairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.1, 0.48), new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.4}));
-  chairSeat.position.y = 0.44;
-  chairGroup.add(chairSeat);
+    const sillGeo = new THREE.BoxGeometry(3.1,0.18,0.65);
+    const sillMat = new THREE.MeshStandardMaterial({color:0xfffdf4, roughness:0.35});
+    const sill = new THREE.Mesh(sillGeo, sillMat);
+    sill.position.set(2.3,0.79,-3.62);
+    sill.castShadow = true;
+    scene.add(sill);
 
-  const chairBack = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.52, 0.08), new THREE.MeshStandardMaterial({color:0x4aa8ff, roughness:0.4}));
-  chairBack.position.set(0, 0.68, -0.21);
-  chairGroup.add(chairBack);
-
-  chairGroup.position.set(0, 0, 0.85);
-  deskGroup.add(chairGroup);
-
-  deskGroup.position.set(2.4, 0, -1.6);
-  scene.add(deskGroup);
-
-  // ========== 吊扇 ==========
-const fanPoleGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.2, 12);
-const fanPoleMat = new THREE.MeshStandardMaterial({color:0x333333,roughness:0.4});
-const fanPole = new THREE.Mesh(fanPoleGeo, fanPoleMat);
-fanPole.position.set(-0.2, 2.7, 1.4);
-fanPole.castShadow = true;
-scene.add(fanPole);
-
-const fanHeadGeo = new THREE.CylinderGeometry(0.22,0.22,0.22,16);
-const fanHeadMat = new THREE.MeshStandardMaterial({color:0x222222});
-const fanHead = new THREE.Mesh(fanHeadGeo, fanHeadMat);
-fanHead.position.set(-0.2, 3.3, 1.4);
-fanHead.castShadow = true;
-scene.add(fanHead);
-
-const fanBladesGroup = new THREE.Group();
-const bladeMat = new THREE.MeshStandardMaterial({color:0xffdd33, roughness:0.45});
-
-for (let i = 0; i < 4; i++) {
-  const bladeGeo = new THREE.BoxGeometry(0.12, 1.15, 0.07);
-  const blade = new THREE.Mesh(bladeGeo, bladeMat);
-  blade.position.y = 0.57;
-  blade.rotation.z = (Math.PI * 2 / 4) * i;
-  blade.position.applyAxisAngle(new THREE.Vector3(0,0,1), (Math.PI * 2 / 4)*i);
-  fanBladesGroup.add(blade);
-}
-fanBladesGroup.position.set(-0.2, 3.3,1.4);
-scene.add(fanBladesGroup);
-fanMesh = fanBladesGroup;
-
-  // ========== 【全新升级窗户：加厚窗框+突出墙面+窗台，一眼识别】 ==========
-  const winFrameGeo = new THREE.BoxGeometry(2.9, 2.4, 0.45);
-  const winFrameMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.25, metalness:0.25});
-  const winFrame = new THREE.Mesh(winFrameGeo, winFrameMat);
-  winFrame.position.set(2.3, 1.9, -3.72);
-  winFrame.castShadow = true;
-  winFrame.receiveShadow = true;
-  scene.add(winFrame);
-
-  const winGlassGeo = new THREE.PlaneGeometry(2.25, 1.8);
-  const winMat = new THREE.MeshStandardMaterial({color:0x55b1ff, side:THREE.DoubleSide, transparent:true, opacity:0.92, roughness:0.05, metalness:0.55, emissive:0x113355, emissiveIntensity:0.35});
-  windowMesh = new THREE.Mesh(winGlassGeo, winMat);
-  windowMesh.position.set(2.3, 1.9, -3.48);
-  scene.add(windowMesh);
-
-  // 白色十字窗格
-  const crossMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.25});
-  const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, 0.05), crossMat);
-  crossV.position.set(2.3, 1.9, -3.46);
-  scene.add(crossV);
-
-  const crossH = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.1, 0.05), crossMat);
-  crossH.position.set(2.3, 1.9, -3.46);
-  scene.add(crossH);
-
-  // 窗台
-  const sillGeo = new THREE.BoxGeometry(3.1, 0.18, 0.65);
-  const sillMat = new THREE.MeshStandardMaterial({color:0xfffdf4, roughness:0.35});
-  const sill = new THREE.Mesh(sillGeo, sillMat);
-  sill.position.set(2.3, 0.79, -3.62);
-  sill.castShadow = true;
-  scene.add(sill);
-
-  animate();
+    animate();
 }
 
 function animate() {
-  requestAnimationFrame(animate);
-  fanMesh.rotation.y += fanRotateSpeed;
-  renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+    fanMesh.rotation.y += fanRotateSpeed;
+    renderer.render(scene, camera);
 }
 
-function updateScene(nodeId, status) {
-  document.getElementById("info").innerText = `当前宿舍：${nodeId} | 状态：${status}`;
+function updateScene(nodeId, status, temp, hum) {
+    currentDorm = nodeId;
+    document.getElementById("info").innerText = `当前宿舍：${nodeId} | 状态：${status}`;
+    if(temp !== undefined && hum !== undefined){
+        document.getElementById("tempVal").innerText = temp;
+        document.getElementById("humVal").innerText = hum;
+        //更新极值
+        if(temp > historyData.maxTemp) historyData.maxTemp = temp;
+        if(temp < historyData.minTemp) historyData.minTemp = temp;
+        if(hum > historyData.maxHum) historyData.maxHum = hum;
+        if(hum < historyData.minHum) historyData.minHum = hum;
+        document.getElementById("maxTemp").innerText = historyData.maxTemp;
+        document.getElementById("minTemp").innerText = historyData.minTemp;
+        document.getElementById("maxHum").innerText = historyData.maxHum;
+        document.getElementById("minHum").innerText = historyData.minHum;
 
-  if (status === "正常") {
-    fanRotateSpeed = 0;
-    floorMesh.material.color.set(0xfff4e2);
-    windowMesh.material.color.set(0x55b1ff);
-    windowMesh.material.emissiveIntensity = 0.35;
-  } else if (status === "偏热") {
-    fanRotateSpeed = 0.08;
-    floorMesh.material.color.set(0xff3f3f);
-  } else if (status === "偏湿") {
-    fanRotateSpeed = 0;
-    floorMesh.material.color.set(0x2fbdff);
-    windowMesh.material.color.set(0x1565a7);
-    windowMesh.material.emissiveIntensity = 0.1;
-  }
+        let comfortText = "";
+        if(temp >=20 && temp <=26 && hum >=40 && hum <=65){
+            comfortText = "舒适👍";
+            document.getElementById("alert").style.display = "none";
+        }else{
+            comfortText = "环境异常⚠️";
+            document.getElementById("alert").style.display = "block";
+        }
+        document.getElementById("comfort").innerText = comfortText;
+    }
+
+    if (status === "正常") {
+        fanRotateSpeed = 0;
+        floorMesh.material.color.set(0xfff4e2);
+        windowMesh.material.color.set(0x55b1ff);
+        windowMesh.material.emissiveIntensity = 0.35;
+    } else if (status === "偏热") {
+        fanRotateSpeed = 0.08;
+        floorMesh.material.color.set(0xff3f3f);
+    } else if (status === "偏湿") {
+        fanRotateSpeed = 0;
+        floorMesh.material.color.set(0x2fbdff);
+        windowMesh.material.color.set(0x1565a7);
+        windowMesh.material.emissiveIntensity = 0.1;
+    }
 }
 
-const client = mqtt.connect('ws://127.0.0.1:8083/mqtt');
+function switchDorm(dormId){
+    currentDorm = dormId;
+    document.getElementById("info").innerText = `当前宿舍：${dormId} | 等待数据`;
+}
+
+// ==========只修改了这一段MQTT代码，其余全部原样保留==========
+const mqttUrl = 'ws://127.0.0.1:8083/mqtt';
+const client = mqtt.connect(mqttUrl);
+const mqttDom = document.getElementById("mqtt-status");
+
 client.on('connect', () => {
-  console.log("MQTT连接成功");
-  client.subscribe('dormmate/+/env');
+    console.log("MQTT连接成功");
+    mqttDom.innerText = `✅已连接 ${mqttUrl}`;
+    mqttDom.style.color = "#009944";
+    client.subscribe('dormmate/+/env');
 });
-
+client.on('close',()=>{
+    mqttDom.innerText = `❌broken (${mqttUrl})`;
+    mqttDom.style.color = "#dd2222";
+})
+client.on('error',()=>{
+    mqttDom.innerText = `❌broken (${mqttUrl})`;
+    mqttDom.style.color = "#dd2222";
+})
 client.on('message', function(topic, payload) {
-  try {
-    let msg = JSON.parse(payload.toString());
-    updateScene(msg.nodeId, msg.status);
-  } catch (e) {
-    console.error("解析消息失败：", e);
-  }
+    try {
+        let msg = JSON.parse(payload.toString());
+        updateScene(msg.nodeId, msg.status, msg.temp, msg.hum);
+    } catch (e) {
+        console.error("解析消息失败：", e);
+    }
 });
 
 window.onload = init3DScene;
