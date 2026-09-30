@@ -26,6 +26,10 @@
         .btn-light-on{background:#27ae60;}
         .btn-dehumid-on{background:#27ae60;}
         .log-area{background:#fff;padding:16px;border-radius:8px;box-shadow:0 1px 3px #0000001a;min-height:180px;}
+        /* A3事件状态文字颜色 */
+        .status-idle{color:#666;}
+        .status-handling{color:#ff9900;font-weight:bold;}
+        .status-recovered{color:#00aa44;font-weight:bold;}
     </style>
 </head>
 <body>
@@ -49,6 +53,7 @@
                 <th>状态</th>
                 <th>温度</th>
                 <th>湿度</th>
+                <th>事件状态</th>
                 <th>设备控制</th>
             </tr>
         </thead>
@@ -58,13 +63,13 @@
     </table>
 
     <div class="log-area">
-        <h3>事件日志 (A2操作记录)</h3>
+        <h3>事件日志</h3>
         <div id="logBox"></div>
     </div>
 
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 <script>
-// 初始化宿舍状态，新增mode字段，原有全部保留
+// 初始化宿舍状态，新增processStatus：idle空闲 / handling处理中 / recovered已恢复
 const dormStatusData = {
     "dorm-a": {
         fan: false,
@@ -73,7 +78,8 @@ const dormStatusData = {
         status: "正常",
         temp: 25,
         hum: 60,
-        mode:"study"
+        mode:"study",
+        processStatus:"idle"
     },
     "dorm-b": {
         fan: false,
@@ -82,7 +88,8 @@ const dormStatusData = {
         status: "正常",
         temp: 25,
         hum: 60,
-        mode:"study"
+        mode:"study",
+        processStatus:"idle"
     },
     "dorm-c": {
         fan: false,
@@ -91,7 +98,8 @@ const dormStatusData = {
         status: "正常",
         temp: 25,
         hum: 60,
-        mode:"study"
+        mode:"study",
+        processStatus:"idle"
     }
 };
 // 当前选中用来切换模式的宿舍
@@ -105,6 +113,23 @@ client.on('connect', ()=>{
     client.subscribe('dormmate/mode');
 })
 
+// A3核心函数：收到新环境数据，自动判断是否恢复
+function checkRecover(dormId, newTemp, newHum){
+    const dorm = dormStatusData[dormId];
+    // 只有处于【处理中】状态才执行判断
+    if(dorm.processStatus !== "handling") return;
+
+    // 正常区间：温度22~28℃，湿度40~70%RH
+    const isNormal = (newTemp >= 22 && newTemp <= 28) && (newHum >= 40 && newHum <=70);
+    if(isNormal){
+        dorm.processStatus = "recovered";
+        dorm.status = "正常";
+        addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 监测到数据恢复正常，事件结束`);
+    }else{
+        addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 数据仍异常，继续监测`);
+    }
+}
+
 // 接收环境数据
 client.on('message', function(topic, payload){
     try{
@@ -114,6 +139,8 @@ client.on('message', function(topic, payload){
             dorm.status = msg.status;
             dorm.temp = msg.temp;
             dorm.hum = msg.hum;
+            // A3：收到新数据，调用恢复判断
+            checkRecover(msg.nodeId, msg.temp, msg.hum);
             renderTable();
         }
     }catch(e){
@@ -127,12 +154,22 @@ function renderTable(){
     tb.innerHTML = "";
     for(let id in dormStatusData){
         const d = dormStatusData[id];
+        // 状态文字和class
+        let statusText, statusClass;
+        if(d.processStatus === "idle"){
+            statusText = "空闲"; statusClass = "status-idle";
+        }else if(d.processStatus === "handling"){
+            statusText = "处理中"; statusClass = "status-handling";
+        }else{
+            statusText = "已恢复"; statusClass = "status-recovered";
+        }
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td>${id}</td>
             <td>${d.status}</td>
             <td>${d.temp} ℃</td>
             <td>${d.hum} %RH</td>
+            <td><span class="${statusClass}">${statusText}</span></td>
             <td>
                 <button class="${d.fan ? 'btn-fan-on' : 'btn-fan'}" onclick="fanControl('${id}')">风扇</button>
                 <button class="${d.light ? 'btn-light-on' : 'btn-light'}" onclick="lightControl('${id}')">灯</button>
@@ -209,6 +246,11 @@ function fanControl(dormId){
     }));
     const text = dorm.fan ? "开启风扇" : "关闭风扇";
     addLog(`${new Date().toLocaleTimeString()} | ${dormId} | ${text}`);
+    // A3：开启设备 → 标记为处理中；关闭设备不触发事件
+    if(dorm.fan){
+        dorm.processStatus = "handling";
+        addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 进入【处理中】，等待新数据验证恢复`);
+    }
     renderTable();
 }
 // 灯控制
@@ -222,6 +264,10 @@ function lightControl(dormId){
     }));
     const text = dorm.light ? "开启灯" : "关闭灯";
     addLog(`${new Date().toLocaleTimeString()} | ${dormId} | ${text}`);
+    if(dorm.light){
+        dorm.processStatus = "handling";
+        addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 进入【处理中】，等待新数据验证恢复`);
+    }
     renderTable();
 }
 // 除湿控制
@@ -235,6 +281,10 @@ function dehumidControl(dormId){
     }));
     const text = dorm.dehumidifier ? "开启除湿" : "关闭除湿";
     addLog(`${new Date().toLocaleTimeString()} | ${dormId} | ${text}`);
+    if(dorm.dehumidifier){
+        dorm.processStatus = "handling";
+        addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 进入【处理中】，等待新数据验证恢复`);
+    }
     renderTable();
 }
 
