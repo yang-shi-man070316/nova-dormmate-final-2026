@@ -125,16 +125,36 @@ function getActiveEvent(dormId) {
 function createNewEvent(dormId, abnormalMsg) {
     const newEvent = {
         dorm: dormId,
-        startTime: new Date().toLocaleTimeString(),
+        startTime: new Date().toLocaleString(),
         abnormalInfo: abnormalMsg,
         priorityReason: "连续异常时长更长，优先处理",
         actionList: [],
+        actionTimeList: [],
         endTime: null,
         finalResult: ""
     };
     eventList.push(newEvent);
     renderEventPanel();
     return newEvent;
+}
+
+// 【A4核心】把完整闭环事件保存到localStorage，供report.html读取
+function saveEventToLocalStorage(finishEvent){
+    // 读取已有记录
+    let savedRecords = JSON.parse(localStorage.getItem("eventRecords") || "[]");
+    // 组装老师要求的7个字段
+    const storeItem = {
+        dormId: finishEvent.dorm,
+        startTime: finishEvent.startTime,
+        abnormalProblem: finishEvent.abnormalInfo,
+        priorityReason: finishEvent.priorityReason,
+        actionText: finishEvent.actionList.join("；"),
+        actionTime: finishEvent.actionTimeList.join("；"),
+        recoverTime: finishEvent.endTime,
+        finalResult: finishEvent.finalResult
+    }
+    savedRecords.push(storeItem);
+    localStorage.setItem("eventRecords", JSON.stringify(savedRecords));
 }
 
 // 渲染A4复盘面板
@@ -149,13 +169,15 @@ function renderEventPanel() {
         const div = document.createElement("div");
         div.className = "event-item";
         const actionText = ev.actionList.length > 0 ? ev.actionList.join("；") : "无";
+        const actionTimeText = ev.actionTimeList.length > 0 ? ev.actionTimeList.join("；") : "无";
         div.innerHTML = `
             <div><strong>宿舍：${ev.dorm}</strong></div>
             <div>开始时间：${ev.startTime}</div>
             <div>异常信息：${ev.abnormalInfo}</div>
             <div>优先原因：${ev.priorityReason}</div>
             <div>处理动作：${actionText}</div>
-            <div>结束时间：${ev.endTime ?? "仍在处理中"}</div>
+            <div>动作时间：${actionTimeText}</div>
+            <div>恢复时间：${ev.endTime ?? "仍在处理中"}</div>
             <div>最终结果：${ev.finalResult ?? "等待数据验证"}</div>
         `;
         box.appendChild(div);
@@ -183,11 +205,13 @@ function checkRecover(dormId, newTemp, newHum){
         dorm.processStatus = "recovered";
         dorm.status = "正常";
         addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 监测到数据恢复正常，事件结束`);
-        // ========= A4：事件标记结束，写入恢复结果 =========
+        // ========= A4：事件标记结束，写入恢复结果并持久化存储 =========
         const ev = getActiveEvent(dormId);
         if(ev){
-            ev.endTime = new Date().toLocaleTimeString();
+            ev.endTime = new Date().toLocaleString();
             ev.finalResult = "环境指标恢复正常，事件闭环";
+            // 保存到localStorage，给report读取
+            saveEventToLocalStorage(ev);
             renderEventPanel();
         }
     }else{
@@ -320,9 +344,12 @@ function fanControl(dormId){
     if(dorm.fan){
         dorm.processStatus = "handling";
         addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 进入【处理中】，等待新数据验证恢复`);
-        // A4：把本次操作存入事件记录
+        // A4：把本次操作存入事件记录，附带操作时间
         const ev = getActiveEvent(dormId);
-        if(ev) ev.actionList.push("开启风扇");
+        if(ev) {
+            ev.actionList.push("开启风扇");
+            ev.actionTimeList.push(new Date().toLocaleString());
+        }
         renderEventPanel();
     }
     renderTable();
@@ -341,9 +368,12 @@ function lightControl(dormId){
     if(dorm.light){
         dorm.processStatus = "handling";
         addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 进入【处理中】，等待新数据验证恢复`);
-        // A4：记录动作
+        // A4：记录动作+时间
         const ev = getActiveEvent(dormId);
-        if(ev) ev.actionList.push("开启灯光");
+        if(ev) {
+            ev.actionList.push("开启灯光");
+            ev.actionTimeList.push(new Date().toLocaleString());
+        }
         renderEventPanel();
     }
     renderTable();
@@ -362,9 +392,12 @@ function dehumidControl(dormId){
     if(dorm.dehumidifier){
         dorm.processStatus = "handling";
         addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 进入【处理中】，等待新数据验证恢复`);
-        // A4：记录动作
+        // A4：记录动作+时间
         const ev = getActiveEvent(dormId);
-        if(ev) ev.actionList.push("开启除湿器");
+        if(ev) {
+            ev.actionList.push("开启除湿器");
+            ev.actionTimeList.push(new Date().toLocaleString());
+        }
         renderEventPanel();
     }
     renderTable();
