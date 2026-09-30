@@ -421,16 +421,20 @@ function updateScene(nodeId, status, t, h, maxT, minT, maxH, minH) {
     }
     document.getElementById("comfortVal").innerText = comfortText;
 
-    // 3D场景颜色同步（和A2面板MQTT消息对齐）
-    if (status === "正常") {
-        floorMesh.material.color.set(0xfff4e2);
-        windowMesh.material.color.set(0x55b1ff);
-        windowMesh.material.emissiveIntensity = 0.35;
-    } else {
-        // 所有异常状态统一地板变红（温度过高/湿度过高都触发）
+    // 3D场景颜色同步：偏热→红色，偏湿→蓝色，正常→恢复原色
+    if (status === "偏热") {
         floorMesh.material.color.set(0xff3333);
         windowMesh.material.color.set(0xff7777);
         windowMesh.material.emissiveIntensity = 0.6;
+    } else if (status === "偏湿") {
+        floorMesh.material.color.set(0x5599ff);
+        windowMesh.material.color.set(0x2266ff);
+        windowMesh.material.emissiveIntensity = 0.6;
+    } else {
+        // 正常（及其他状态）恢复原色
+        floorMesh.material.color.set(0xfff4e2);
+        windowMesh.material.color.set(0x55b1ff);
+        windowMesh.material.emissiveIntensity = 0.35;
     }
     updateDehumidVisual(d.dehumidifier);
     updateLightByMode(d.mode);

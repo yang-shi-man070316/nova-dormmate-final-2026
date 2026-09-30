@@ -33,6 +33,11 @@
         /* ========= A4新增复盘面板样式 ========= */
         .event-panel{background:#fff;padding:16px;border-radius:8px;box-shadow:0 1px 3px #0000001a;margin-top:16px;}
         .event-item{border-bottom:1px solid #eee;padding:10px 0;}
+        /* ========= B1/B2新增面板样式 ========= */
+        .b-panel{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:16px;}
+        .b-card{flex:1;min-width:280px;background:#fff;padding:16px;border-radius:8px;box-shadow:0 1px 3px #0000001a;}
+        .b-card h3{margin:0 0 8px;color:#2c3e50;font-size:15px;}
+        .b-text{color:#333;line-height:1.7;font-size:14px;min-height:48px;word-break:break-all;}
     </style>
 </head>
 <body>
@@ -40,11 +45,23 @@
 
     <div class="state-box">
         <div>等待异常事件</div>
-        <div style="margin:6px 0;">事件状态: 等待</div>
+        <div style="margin:6px 0;" id="currentDormShow">事件状态: 等待</div>
         <div class="mode-buttons">
             <button id="btnStudy">学习模式</button>
             <button id="btnSleep">睡眠模式</button>
             <button id="btnAway">离寝模式</button>
+        </div>
+    </div>
+
+    <!-- ========= B1/B2新增：实时总览与优先关注面板 ========= -->
+    <div class="b-panel">
+        <div class="b-card">
+            <h3>B1 · 当前总览</h3>
+            <div id="b1Text" class="b-text">数据加载中…</div>
+        </div>
+        <div class="b-card">
+            <h3>B2 · 优先关注</h3>
+            <div id="b2Text" class="b-text">数据加载中…</div>
         </div>
     </div>
 
@@ -75,7 +92,7 @@
         <div id="eventBox"></div>
     </div>
 
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="mqtt.min.js"></script>
 <script>
 // 初始化宿舍状态，新增processStatus：idle空闲 / handling处理中 / recovered已恢复
 const dormStatusData = {
@@ -185,6 +202,17 @@ function renderEventPanel() {
 }
 // ==============================================================
 
+// 【A4补充】闭环事件：标记恢复时间与结果并持久化保存（A3恢复验证与正常报文自动闭环共用）
+function closeActiveEvent(dormId){
+    const ev = getActiveEvent(dormId);
+    if(!ev) return;
+    ev.endTime = new Date().toLocaleString();
+    ev.finalResult = "环境指标恢复正常，事件闭环";
+    saveEventToLocalStorage(ev);
+    addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 事件闭环，已保存复盘记录`);
+    renderEventPanel();
+}
+
 // MQTT客户端
 const client = mqtt.connect('ws://127.0.0.1:8083/mqtt');
 client.on('connect', ()=>{
@@ -206,14 +234,7 @@ function checkRecover(dormId, newTemp, newHum){
         dorm.status = "正常";
         addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 监测到数据恢复正常，事件结束`);
         // ========= A4：事件标记结束，写入恢复结果并持久化存储 =========
-        const ev = getActiveEvent(dormId);
-        if(ev){
-            ev.endTime = new Date().toLocaleString();
-            ev.finalResult = "环境指标恢复正常，事件闭环";
-            // 保存到localStorage，给report读取
-            saveEventToLocalStorage(ev);
-            renderEventPanel();
-        }
+        closeActiveEvent(dormId);
     }else{
         addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 数据仍异常，继续监测`);
     }
@@ -222,21 +243,28 @@ function checkRecover(dormId, newTemp, newHum){
 // 接收环境数据
 client.on('message', function(topic, payload){
     try{
+        // 只处理 /env 环境主题，忽略模式等其他主题，防止误生成事件
+        if(!topic.endsWith("/env")) return;
         let msg = JSON.parse(payload.toString());
+        // 过滤无效数据：缺少nodeId或status的报文不处理
+        if(!msg || !msg.nodeId || !msg.status) return;
         const dorm = dormStatusData[msg.nodeId];
-        if(dorm){
-            dorm.status = msg.status;
-            dorm.temp = msg.temp;
-            dorm.hum = msg.hum;
-            // A3：收到新数据，调用恢复判断
-            checkRecover(msg.nodeId, msg.temp, msg.hum);
-            // ========= A4：检测到异常，新建事件 =========
-            if(msg.status !== "正常" && dorm.processStatus === "idle" && !getActiveEvent(msg.nodeId)){
-                createNewEvent(msg.nodeId, msg.status);
-            }
-            renderTable();
-            renderEventPanel();
+        if(!dorm) return;
+        dorm.status = msg.status;
+        dorm.temp = msg.temp;
+        dorm.hum = msg.hum;
+        // A3：收到新数据，调用恢复判断
+        checkRecover(msg.nodeId, msg.temp, msg.hum);
+        // ========= A4：收到正常报文，未闭环事件标记恢复并闭环 =========
+        if(msg.status === "正常"){
+            closeActiveEvent(msg.nodeId);
         }
+        // ========= A4：检测到异常，新建事件 =========
+        if(msg.status !== "正常" && dorm.processStatus === "idle" && !getActiveEvent(msg.nodeId)){
+            createNewEvent(msg.nodeId, msg.status);
+        }
+        renderTable();
+        renderEventPanel();
     }catch(e){
         console.error(e);
     }
@@ -278,7 +306,7 @@ function renderTable(){
 // 选中要操作模式的宿舍
 function selectOperateDorm(dormId){
     selectedDorm = dormId;
-    document.getElementById("currentDormShow").innerText = dormId;
+    document.getElementById("currentDormShow").innerText = "当前操作宿舍：" + dormId;
     refreshModeButtonUI();
 }
 
@@ -417,6 +445,136 @@ window.onload = function(){
     selectOperateDorm("dorm-a");
     renderEventPanel();
 }
+
+// ============ B1/B2 追加模块（只读 dormStatusData，不修改任何现有代码） ============
+const B_DORMS = Object.keys(dormStatusData);
+
+// B模块独立状态：lastStatus 检测迁移 / abnormalStartAt 异常起始时间戳 / errCount 异常次数
+const bState = {};
+B_DORMS.forEach(id => {
+    bState[id] = { lastStatus: dormStatusData[id].status, abnormalStartAt: null, errCount: 0 };
+});
+
+// 每秒检测状态迁移（唯一写 bState 的地方）
+function detectBTransitions(){
+    B_DORMS.forEach(id => {
+        const s = bState[id];
+        const cur = dormStatusData[id].status;
+        if(cur === "正常"){
+            if(s.lastStatus !== "正常") s.abnormalStartAt = null;   // 异常→正常：清计时
+        }else{
+            if(s.lastStatus === "正常"){
+                s.abnormalStartAt = Date.now();                     // 正常→异常：开始计时 + 计数
+                s.errCount++;
+            }
+            // 异常→另一异常：保留计时（持续异常，与A1语义一致）
+        }
+        s.lastStatus = cur;
+    });
+}
+
+// 异常宿舍排序数组：时长降序 → 异常次数降序 → nodeId 升序
+function getAbnormalRanking(){
+    const list = B_DORMS.map(id => ({
+        dormId: id,
+        status: dormStatusData[id].status,
+        processStatus: dormStatusData[id].processStatus,
+        durationMs: bState[id].abnormalStartAt !== null ? Date.now() - bState[id].abnormalStartAt : 0,
+        errCount: bState[id].errCount
+    })).filter(x => x.status !== "正常");
+    list.sort((a,b) => {
+        if(b.durationMs !== a.durationMs) return b.durationMs - a.durationMs;
+        if(b.errCount !== a.errCount) return b.errCount - a.errCount;
+        return a.dormId.localeCompare(b.dormId);
+    });
+    return list;
+}
+
+// 时长文本："刚出现"（不足1分钟）| "X分钟"
+function fmtDuration(ms){
+    const minutes = Math.floor(ms / 60000);
+    return minutes < 1 ? "刚出现" : minutes + "分钟";
+}
+
+// B1 逐宿舍枚举短语："dorm-a正常" | "dorm-b已持续偏热20分钟（处理中）" | "dorm-c刚出现偏湿"
+function fmtB1DormPhrase(id){
+    const d = dormStatusData[id];
+    if(d.status === "正常") return id + "正常";
+    let text;
+    if(bState[id].abnormalStartAt === null){
+        text = id + "刚出现" + d.status;
+    }else{
+        const dur = fmtDuration(Date.now() - bState[id].abnormalStartAt);
+        text = dur === "刚出现" ? id + "刚出现" + d.status : id + "已持续" + d.status + dur;
+    }
+    if(d.processStatus === "handling") text += "（处理中）";
+    return text;
+}
+
+// B1 重点句尾巴短语："dorm-c出现偏湿"（无时长）
+function fmtRestAbnormalPhrase(x){
+    return x.dormId + "出现" + x.status;
+}
+
+// B2 顶宿舍短语："已连续偏热20分钟" | "刚出现偏湿"
+function fmtB2TopPhrase(x){
+    return x.durationMs < 60000 ? "刚出现" + x.status : "已连续" + x.status + fmtDuration(x.durationMs);
+}
+
+// B2 其余异常宿舍短语："dorm-c虽然偏湿，但仅持续5分钟" | "dorm-c虽然偏湿，但刚出现"
+function fmtB2RestPhrase(x){
+    return x.dormId + "虽然" + x.status + "，但" + (x.durationMs < 60000 ? "刚出现" : "仅持续" + fmtDuration(x.durationMs));
+}
+
+// B1 当前总览文本（逐宿舍枚举 + 统计 + 重点句）
+function renderB1(){
+    const list = getAbnormalRanking();
+    const total = B_DORMS.length;
+    const abn = list.length;
+    const nor = total - abn;
+    const phrases = B_DORMS.map(fmtB1DormPhrase).join("；");
+    let key;
+    if(abn === 0){
+        key = "当前无需重点关注";
+    }else if(abn === 1){
+        key = list[0].dormId + "是当前重点";
+    }else{
+        key = list[0].dormId + "持续异常时间更长，是当前重点";
+        key += "，" + list.slice(1).map(fmtRestAbnormalPhrase).join("，");
+    }
+    const text = phrases + "。当前" + total + "个宿舍中，" + nor + "个正常，" + abn + "个需要关注；" + key + "。";
+    const el = document.getElementById("b1Text");
+    if(el.innerText !== text) el.innerText = text;
+}
+
+// B2 优先关注文本（排序对比异常持续时长）
+function renderB2(){
+    const list = getAbnormalRanking();
+    const el = document.getElementById("b2Text");
+    let text;
+    if(list.length === 0){
+        text = "当前所有宿舍状态正常，无需优先关注。";
+    }else{
+        text = "优先关注" + list[0].dormId + "：" + fmtB2TopPhrase(list[0]);
+        const rest = list.slice(1).map(fmtB2RestPhrase);
+        if(rest.length > 0) text += "；" + rest.join("；");
+        const normalIds = B_DORMS.filter(id => dormStatusData[id].status === "正常");
+        if(normalIds.length > 0) text += "；" + normalIds.join("、") + "当前正常。";
+        else text += "。";
+    }
+    if(el.innerText !== text) el.innerText = text;
+}
+
+// 每秒：检测状态迁移 + 刷新文本（时长自动增长，不依赖新报文）
+setInterval(function(){
+    detectBTransitions();
+    renderB1();
+    renderB2();
+}, 1000);
+// 页面加载立即渲染一次
+renderB1();
+renderB2();
+// ==============================================================
 </script>
 </body>
 </html>

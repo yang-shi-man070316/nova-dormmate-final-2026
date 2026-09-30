@@ -8,61 +8,177 @@
 }
 body{
     max-width: 1100px;
-    margin: 30px auto;
-    padding: 0 20px;
-    font-family: system-ui, -apple-system, sans-serif;
-    background-color: #f7f9fc;
+    margin: 0 auto;
+    padding: 24px 20px 40px;
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    background-color: #edf1f6;
+    color: #1f2a37;
+}
+/* 报告封面：深蓝渐变横幅 + 温湿度渐变光谱线 */
+.report-hero{
+    background: linear-gradient(135deg, #16324f 0%, #25617e 100%);
+    border-radius: 16px;
+    padding: 36px 30px 30px;
+    margin-bottom: 22px;
+    text-align: center;
+}
+.report-hero h1{
+    margin: 0;
+    color: #ffffff;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-shadow: 0 1px 2px rgba(0,0,0,.2);
+}
+.spectrum{
+    height: 5px;
+    max-width: 420px;
+    margin: 18px auto 0;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #e8590c, #f59f00, #15aabf, #1971c2);
 }
 .container{
+    padding: 0;
+}
+/* 章节标题：左侧渐变竖条 */
+.container h2{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 34px 0 16px;
+    font-size: 19px;
+    font-weight: 700;
+    color: #1f2a37;
+    text-align: left;
+}
+.container h2::before{
+    content: "";
+    width: 5px;
+    height: 20px;
+    border-radius: 3px;
+    background: linear-gradient(180deg, #25617e, #15aabf);
+}
+/* 统计卡片（温度橙 / 湿度蓝 顶边着色） */
+.stats-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+}
+.stats-grid p{
+    margin: 0;
+    padding: 15px 18px;
     background: #ffffff;
-    padding: 30px;
+    border: 1px solid #e2e8f0;
+    border-top: 3px solid #25617e;
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    box-shadow: 0 1px 2px rgba(31,42,55,.05);
+    font-size: 15px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
 }
-h1, h2{
+.stats-grid p.stat-temp{
+    border-top-color: #e8590c;
+}
+.stats-grid p.stat-hum{
+    border-top-color: #1971c2;
+}
+/* 数据表格：白色卡片风格 */
+.table-scroll{
+    overflow-x: auto;
+}
+table.dataframe{
+    width: 100%;
+    margin: 0 0 30px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(31,42,55,.05);
+}
+table.dataframe th, table.dataframe td{
+    padding: 11px 10px;
     text-align: center;
-    color: #2c3e50;
+    white-space: nowrap;
 }
-p{
-    line-height: 1.6;
-    color: #333;
+table.dataframe th{
+    background: #2b4a63;
+    color: #ffffff;
+    font-weight: 600;
 }
-table.dataframe {
-  border-collapse: collapse;
-  margin: 16px auto 32px;
-  width: 90%;
-}
-table.dataframe th, table.dataframe td {
-  border:1px solid #d1d9e6;
-  padding:10px 8px;
-  text-align:center;
-}
-table.dataframe th {
-    background-color:#34495e;
-    color:white;
-    font-weight:500;
+table.dataframe td{
+    border-top: 1px solid #eef2f7;
+    color: #1f2a37;
 }
 table.dataframe tr:nth-child(even){
-    background-color:#f4f7fb;
+    background: #f6f9fc;
 }
-img{
-    display:block;
-    margin:12px auto 24px;
-    border-radius:6px;
+table.dataframe tbody tr:hover{
+    background: #eef5fa;
+}
+.attention-table td:last-child{
+    color: #e8590c;
+    font-weight: 600;
+}
+/* 图表卡片 */
+.chart-card{
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(31,42,55,.05);
+    padding: 18px;
+    margin-bottom: 30px;
+}
+.chart-card img{
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+    border-radius: 6px;
+}
+/* ========== B3 今日摘要样式 ========== */
+.b3-summary{
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-left: 5px solid #25617e;
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(31,42,55,.05);
+    padding: 18px 22px;
+    margin: 0 0 30px;
+    max-width: 100%;
+    line-height: 1.9;
+    color: #1f2a37;
+    text-align: left;
+}
+@media (max-width: 640px){
+    .report-hero h1{
+        font-size: 23px;
+    }
+    .container h2{
+        font-size: 17px;
+    }
 }
 </style>
 </head>
 <body>
-<div class="container">
+<header class="report-hero">
     <h1>宿舍环境监测统计报告</h1>
+    <div class="spectrum" aria-hidden="true"></div>
+</header>
+
+<div class="container">
+    <div class="stats-grid">
     <p>总记录数：5</p>
-    <p>平均温度：21.20 ℃</p>
-    <p>最高温度：34.00 ℃，最低温度：11.00 ℃</p>
-    <p>平均湿度：18.60 %</p>
-    <p>最高湿度：25.00 %，最低湿度：9.00 %</p>
+    <p class="stat-temp">平均温度：21.20 ℃</p>
+    <p class="stat-temp">最高温度：34.00 ℃，最低温度：11.00 ℃</p>
+    <p class="stat-hum">平均湿度：18.60 %</p>
+    <p class="stat-hum">最高湿度：25.00 %，最低湿度：9.00 %</p>
+    </div>
 
     <h2>需要关注的记录</h2>
-    <table border="1" class="dataframe">
+    <div class="table-scroll">
+    <table class="dataframe attention-table">
       <thead>
         <tr>
           <th>time</th>
@@ -80,16 +196,18 @@ img{
         </tr>
       </tbody>
     </table>
+    </div>
 
     <h2>环境状态统计柱状图</h2>
-    <img src="chart.png" width="600">
+    <div class="chart-card"><img src="chart.png" width="600"></div>
 
     <h2>温湿度趋势折线图</h2>
-    <img src="trend.png" width="700">
+    <div class="chart-card"><img src="trend.png" width="700"></div>
 
     <!-- ========== A4 事件复盘表格 ========== -->
-    <h2>事件复盘（A4）</h2>
-    <table border="1" class="dataframe">
+    <h2>事件复盘</h2>
+    <div class="table-scroll">
+    <table class="dataframe">
       <thead>
         <tr>
           <th>宿舍编号</th>
@@ -105,6 +223,11 @@ img{
       <tbody id="eventTbody">
       </tbody>
     </table>
+    </div>
+
+    <!-- ========== B3 今日温湿度历史摘要 ========== -->
+    <h2>今日温湿度历史摘要</h2>
+    <div id="b3Summary" class="b3-summary"></div>
 </div>
 
 <script>
@@ -138,6 +261,105 @@ function renderEventTable(){
 window.onload = function(){
     renderEventTable();
 }
+
+// ========== B3 今日温湿度历史摘要（只读 localStorage eventRecords，不修改A4代码） ==========
+// 判断事件是否为今日：startTime 是 A2 的 toLocaleString 字符串，取日期部分与今日 toLocaleDateString 比对
+function isTodayEvent(item){
+    const today = new Date().toLocaleDateString();
+    const dayPart = (item.startTime || "").split(" ")[0];
+    return dayPart === today;
+}
+
+// 解析 A2 保存的时间字符串，空值或解析失败返回 null
+function parseTime(str){
+    if(!str) return null;
+    const t = new Date(str);
+    return isNaN(t.getTime()) ? null : t.getTime();
+}
+
+// 处理时长（分钟），起止时间任一为空/非法则返回 null
+function diffMinutes(start, end){
+    const a = parseTime(start), b = parseTime(end);
+    if(a === null || b === null) return null;
+    return Math.round((b - a) / 60000);
+}
+
+// B3 渲染：自动筛选今日闭环事件，汇总统计并输出文字摘要
+function renderB3Summary(){
+    const box = document.getElementById("b3Summary");
+    box.innerHTML = "";
+    const records = JSON.parse(localStorage.getItem("eventRecords") || "[]");
+    const todayEvents = records.filter(isTodayEvent);
+    const today = new Date().toLocaleDateString();
+
+    if(todayEvents.length === 0){
+        const div = document.createElement("div");
+        div.innerText = `今日（${today}）暂无闭环事件记录。`;
+        box.appendChild(div);
+        return;
+    }
+
+    // 按宿舍聚合：事件数、异常类型、处理时长；同时统计类型分布与首/末事件
+    const byDorm = {};
+    const typeCount = {};
+    let firstEv = todayEvents[0], lastEv = todayEvents[0];
+    todayEvents.forEach(ev => {
+        const d = byDorm[ev.dormId] || (byDorm[ev.dormId] = { count: 0, types: {}, durations: [] });
+        d.count++;
+        const type = ev.abnormalProblem || "未知";
+        d.types[type] = (d.types[type] || 0) + 1;
+        typeCount[type] = (typeCount[type] || 0) + 1;
+        const m = diffMinutes(ev.startTime, ev.recoverTime);
+        if(m !== null) d.durations.push(m);
+        // 首起/最近一起：优先按解析后的时间比较，解析失败回退字符串比较
+        const key = parseTime(ev.startTime) ?? ev.startTime;
+        if(key < (parseTime(firstEv.startTime) ?? firstEv.startTime)) firstEv = ev;
+        if(key > (parseTime(lastEv.startTime) ?? lastEv.startTime)) lastEv = ev;
+    });
+
+    const addLine = text => {
+        const div = document.createElement("div");
+        div.innerText = text;
+        box.appendChild(div);
+    };
+
+    const dormCount = Object.keys(byDorm).length;
+    addLine(`今日（${today}）共闭环 ${todayEvents.length} 起异常事件，涉及 ${dormCount} 个宿舍：`);
+
+    // dorm-a/b/c 固定顺序在前，其余宿舍按字母序
+    Object.keys(byDorm).sort((x,y) => {
+        const order = ["dorm-a","dorm-b","dorm-c"];
+        const ix = order.indexOf(x), iy = order.indexOf(y);
+        if(ix !== -1 || iy !== -1){
+            if(ix === -1) return 1;
+            if(iy === -1) return -1;
+            return ix - iy;
+        }
+        return x.localeCompare(y);
+    }).forEach(id => {
+        const d = byDorm[id];
+        const typeText = Object.entries(d.types).map(([t,c]) => t + "×" + c).join("、");
+        const avg = d.durations.length > 0 ? Math.round(d.durations.reduce((s,v)=>s+v,0) / d.durations.length) : null;
+        const avgText = avg !== null ? `，平均处理时长 ${avg} 分钟` : "";
+        addLine(`· ${id}：${d.count} 起（${typeText}）${avgText}`);
+    });
+
+    const typeText = Object.entries(typeCount)
+        .sort((a,b) => b[1] - a[1])
+        .map(([t,c]) => `${t} ${c} 起`).join("、");
+    addLine(`今日异常类型分布：${typeText}`);
+
+    const timePart = ev => (ev.startTime || "").split(" ").slice(1).join(" ");
+    addLine(`今日首起事件 ${timePart(firstEv)}（${firstEv.dormId} ${firstEv.abnormalProblem}），最近一起 ${timePart(lastEv)}（${lastEv.dormId} ${lastEv.abnormalProblem}）。`);
+}
+
+// 页面加载立即渲染（脚本位于 body 末尾，DOM 已就绪）
+renderB3Summary();
+// 其他标签页（如A2页面）写入 eventRecords 时自动刷新摘要
+window.addEventListener("storage", function(e){
+    if(e.key === "eventRecords") renderB3Summary();
+});
+// ==============================================================
 </script>
 </body>
 </html>
