@@ -2,223 +2,187 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>DormMate宿舍环境监控</title>
+<title>DormMate M6 3D宿舍+监控面板+A1</title>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mqtt@4.3.7/dist/mqtt.min.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{padding:24px;font-family:system-ui;background:#f3f7fa;}
-.wrap{display:flex;gap:20px;align-items:flex-start;}
-#scene-box{width:920px;height:500px;border:1px solid #d8e2ec;background:#ffffff;border-radius:12px;box-shadow:0 8px 22px rgba(28,52,90,0.08);}
-.right-panel{width:340px;background:#fff;border-radius:12px;padding:20px;box-shadow:0 8px 22px rgba(28,52,90,0.08);}
-#mqtt-status{margin-bottom:12px;font-size:16px;font-weight:bold;}
-#info{margin-bottom:14px;font-size:18px;font-weight:600;color:#223857;}
-.row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
-button{padding:10px 16px;border:none;border-radius:8px;background:#3478d9;color:white;font-size:15px;cursor:pointer;transition:0.2s;}
-button:hover{background:#2460b8;}
-.data-item{font-size:16px;margin:10px 0;padding:8px;background:#f4f7fb;border-radius:8px;}
-
-/* 告警列表：放在右侧面板内部，不是页面顶部，和同学区分开 */
-.alert-list-title{
-  font-size:17px;
-  font-weight:bold;
-  margin-bottom:10px;
-  color:#223857;
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui, sans-serif;}
+body{
+    padding:20px;
+    background:#f7f9fc;
+    max-width:1450px;
+    margin:0 auto;
 }
-.alert-item{
-  border:1px solid #e2e8f0;
-  border-radius:8px;
-  padding:10px;
-  margin-bottom:8px;
+/* 顶部状态栏 */
+.top-bar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:16px;
+    gap:12px;
 }
-.alert-dorm-name{
-  font-weight:bold;
-  font-size:15px;
+.connect-status{
+    font-size:17px;
+    font-weight:bold;
+    white-space:nowrap;
 }
-.alert-desc{
-  font-size:13px;
-  color:#444;
-  margin:4px 0;
+.warn-box{
+    background:#ff4444;
+    color:#fff;
+    padding:8px 16px;
+    border-radius:6px;
+    font-weight:bold;
+    white-space:nowrap;
+    display:none;
 }
-.priority-tag{
-  display:inline-block;
-  padding:2px 7px;
-  border-radius:10px;
-  color:#fff;
-  font-size:12px;
-  margin-left:6px;
+/* 主体左右布局 */
+.main-wrap{
+    display:flex;
+    gap:24px;
+    align-items:flex-start;
 }
-.priority-high{
-  background:#c82423;
+/* 左侧3D场景，自动占剩余全部宽度 */
+#scene-box{
+    flex:1;
+    height:580px;
+    border:1px solid #dbe4ee;
+    background:#ffffff;
+    border-radius:12px;
+    box-shadow:0 12px 34px rgba(31,58,95,0.12);
 }
-.priority-middle{
-  background:#e67e22;
+/* 右侧卡片固定宽度，不压缩 */
+.right-card{
+    width:340px;
+    flex-shrink:0;
+    background:#ffffff;
+    border-radius:12px;
+    padding:20px;
+    box-shadow:0 4px 12px #00000015;
 }
-.alert-btn{
-  padding:3px 8px;
-  font-size:13px;
-  background:#2b85cc;
-  margin-top:4px;
+.right-card h3{margin-bottom:14px;color:#223;}
+.dorm-btn-group{display:flex;gap:8px;margin-bottom:16px;}
+.dorm-btn{padding:6px 10px;border:none;border-radius:5px;background:#4472C4;color:white;font-size:14px;cursor:pointer;}
+.dorm-btn:hover{background:#365ba3;}
+.dorm-info{line-height:2.2;font-size:15px;}
+/* A1底部面板 */
+#a1-panel{
+    margin-top:20px;
+    padding:16px;
+    border:1px solid #4472C4;
+    border-radius:10px;
+    background:#f8faff;
+    width:100%;
 }
+#a1-panel h3{margin:0 0 8px 0;color:#224488;}
+#priorityText{font-size:16px;}
 </style>
 </head>
 <body>
-<div class="wrap">
-    <div class="left">
-        <div id="mqtt-status"></div>
-        <div id="info">当前宿舍：-- | 状态：--</div>
-        <div id="scene-box"></div>
-    </div>
+<!-- 顶部 -->
+<div class="top-bar">
+    <div class="connect-status">MQTT: <span id="mqttState">未连接</span> | 当前宿舍：<span id="dormName">--</span> | 状态：<span id="dormStatus">--</span></div>
+    <div id="warnBox" class="warn-box">⚠️ 环境超标，请留意！</div>
+</div>
 
-    <!-- 右侧面板：最上方放告警列表，下面是宿舍按钮、数据 -->
-    <div class="right-panel">
-        <div class="alert-list-title">告警处置列表</div>
-        <div id="alertListBox">
-            <!-- JS动态填充告警条目 -->
+<!-- 主体：左边3D，右边卡片 -->
+<div class="main-wrap">
+    <div id="scene-box"></div>
+    <div class="right-card">
+        <h3>宿舍环境监控</h3>
+        <div class="dorm-btn-group">
+            <button type="button" class="dorm-btn" data-dorm="dorm-a">宿舍A</button>
+            <button type="button" class="dorm-btn" data-dorm="dorm-b">宿舍B</button>
+            <button type="button" class="dorm-btn" data-dorm="dorm-c">宿舍C</button>
         </div>
-        <hr style="margin:16px 0;border:0;border-top:1px solid #eee;">
-        <div class="row">
-            <button onclick="switchDorm('DORM-A')">宿舍A</button>
-            <button onclick="switchDorm('DORM-B')">宿舍B</button>
-            <button onclick="switchDorm('DORM-C')">宿舍C</button>
+        <div class="dorm-info">
+            <div>🌡 当前温度：<span id="tempVal">--</span> ℃</div>
+            <div>💧 当前湿度：<span id="humVal">--</span> %RH</div>
+            <div>✅ 舒适度：<span id="comfortVal">--</span></div>
+            <div>📊 最高温：<span id="maxTemp">--</span> ℃</div>
+            <div>📊 最低温：<span id="minTemp">--</span> ℃</div>
+            <div>📊 最高湿：<span id="maxHum">--</span> %RH</div>
+            <div>📊 最低湿：<span id="minHum">--</span> %RH</div>
         </div>
-        <div class="data-item">🌡️ 当前温度：<span id="tempVal">--</span> ℃</div>
-        <div class="data-item">💧 当前湿度：<span id="humVal">--</span> %RH</div>
-        <div class="data-item">✅ 舒适度：<span id="comfort">等待数据</span></div>
-        <div class="data-item">📊 最高温：<span id="maxTemp">--</span> ℃</div>
-        <div class="data-item">📉 最低温：<span id="minTemp">--</span> ℃</div>
-        <div class="data-item">📊 最高湿：<span id="maxHum">--</span> %RH</div>
-        <div class="data-item">📉 最低湿：<span id="minHum">--</span> %RH</div>
     </div>
 </div>
 
-<script>
-const dormInfo = {
-  "DORM-A": {
-    temp: "",
-    hum: "",
-    status: "正常",
-    continuousErrCount: 0,
-    errStartTime: null,
-    maxTemp: -999,
-    minTemp: 999,
-    maxHum: -999,
-    minHum: 999
-  },
-  "DORM-B": {
-    temp: "",
-    hum: "",
-    status: "正常",
-    continuousErrCount: 0,
-    errStartTime: null,
-    maxTemp: -999,
-    minTemp: 999,
-    maxHum: -999,
-    minHum: 999
-  },
-  "DORM-C": {
-    temp: "",
-    hum: "",
-    status: "正常",
-    continuousErrCount: 0,
-    errStartTime: null,
-    maxTemp: -999,
-    minTemp: 999,
-    maxHum: -999,
-    minHum: 999
-  }
-}
+<!-- A1优先关注面板 -->
+<div id="a1-panel">
+    <h3>A1｜当前优先关注宿舍</h3>
+    <div id="priorityText">等待数据计算优先级...</div>
+</div>
 
+<script>
 let scene, camera, renderer;
 let fanMesh, windowMesh;
 let fanRotateSpeed = 0;
 let floorMesh;
-let currentDorm = "DORM-A";
+// 全局存储每个宿舍数据，新增max/min极值
+const dormStatusData = {
+    "dorm-a": { continuousErrTime:0, errCount:0, isAbnormal:false, timer:null, temp:0, hum:0, status:"正常", maxTemp:null, minTemp:null, maxHum:null, minHum:null },
+    "dorm-b": { continuousErrTime:0, errCount:0, isAbnormal:false, timer:null, temp:0, hum:0, status:"正常", maxTemp:null, minTemp:null, maxHum:null, minHum:null },
+    "dorm-c": { continuousErrTime:0, errCount:0, isAbnormal:false, timer:null, temp:0, hum:0, status:"正常", maxTemp:null, minTemp:null, maxHum:null, minHum:null }
+};
+// 当前选中查看的宿舍（点击按钮切换）
+let currentViewDorm = "dorm-a";
 
-// 计算告警优先级
-function getPriority(dormItem){
-  if(!dormItem.errStartTime) return null;
-  const dur = Date.now() - dormItem.errStartTime;
-  if(dur > 30000) return "high";
-  return "middle";
-}
-
-// 渲染告警列表（A1核心功能）
-function renderAlertList(){
-  const alertBox = document.getElementById("alertListBox");
-  const errDorms = Object.entries(dormInfo).filter(([k,v])=>v.status !== "正常");
-  // 按异常时长降序排序（优先级从高到低）
-  errDorms.sort((a,b)=>{
-    const durA = Date.now() - a[1].errStartTime;
-    const durB = Date.now() - b[1].errStartTime;
-    return durB - durA;
-  })
-
-  if(errDorms.length ===0){
-    alertBox.innerHTML = "<div style='color:#666;font-size:14px'>暂无告警，全部宿舍环境正常</div>";
-    return;
-  }
-
-  let htmlStr = "";
-  for(let [dormId,data] of errDorms){
-    const priority = getPriority(data);
-    const durSec = Math.floor((Date.now() - data.errStartTime)/1000);
-    let priorityText = priority==="high"?"高":"中";
-    let priorityClass = priority==="high"?"priority-high":"priority-middle";
-    let adviceText = "";
-    if(data.status === "偏热"){
-      adviceText = "温度偏高，建议开启空调或风扇降温";
-    }else if(data.status === "偏湿"){
-      adviceText = "湿度过高，建议开启除湿机";
-    }
-
-    htmlStr += `
-    <div class="alert-item" onclick="switchDorm('${dormId}')">
-      <div class="alert-dorm-name">${dormId.toLowerCase()} ${data.status} (${data.temp}℃ / ${data.hum}%)
-        <span class="priority-tag ${priorityClass}">优先级:${priorityText}</span>
-      </div>
-      <div class="alert-desc">连续异常 ${durSec}秒 | 累计${data.continuousErrCount}次异常<br/>${adviceText}</div>
-      <button class="alert-btn">更换处置方案</button>
-    </div>
-    `
-  }
-  alertBox.innerHTML = htmlStr;
+// 初始化按钮点击事件（DOM加载完成后绑定！）
+function bindDormButtons(){
+    document.querySelectorAll('.dorm-btn').forEach(btn=>{
+        btn.addEventListener('click', function(){
+            const dormId = this.dataset.dorm;
+            currentViewDorm = dormId;
+            // 读取该宿舍保存的数据，刷新3D画面+全部面板（包含极值）
+            const d = dormStatusData[dormId];
+            updateScene(dormId, d.status, d.temp, d.hum, d.maxTemp, d.minTemp, d.maxHum, d.minHum);
+        })
+    })
 }
 
 function init3DScene() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0xfff7ea);
-    camera = new THREE.PerspectiveCamera(40, 920 / 500, 0.1, 1000);
+    camera = new THREE.PerspectiveCamera(40, 1200 / 580, 0.1, 1000);
     camera.position.set(10, 6, 11);
     camera.lookAt(0, 1, 0);
     renderer = new THREE.WebGLRenderer({antialias:true});
-    renderer.setSize(920, 500);
+    const container = document.getElementById("scene-box");
+    renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.getElementById("scene-box").appendChild(renderer.domElement);
+    container.appendChild(renderer.domElement);
 
     const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
     dirLight.position.set(6, 9, 5);
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.set(1024,1024);
+    dirLight.shadow.mapSize.set(1024, 1024);
     dirLight.shadow.camera.left = -12;
     dirLight.shadow.camera.right = 12;
     dirLight.shadow.camera.top = 12;
     dirLight.shadow.camera.bottom = -12;
     scene.add(dirLight);
 
-    const ambientLight = new THREE.AmbientLight(0xfffff4, 0.55);
+    const ambientLight = new THREE.AmbientLight(0xffffd4, 0.55);
     scene.add(ambientLight);
 
-    //地板
+    // ========== 地板 ==========
     const floorBaseGeo = new THREE.BoxGeometry(12, 0.6, 9);
     const floorBaseMat = new THREE.MeshStandardMaterial({color:0xfff4e2, roughness:0.7});
-    floorMesh = new THREE.Mesh(floorBaseGeo, floorBaseMat);
-    floorMesh.position.y = -0.3;
-    floorMesh.receiveShadow = true;
-    scene.add(floorMesh);
+    const floorBase = new THREE.Mesh(floorBaseGeo, floorBaseMat);
+    floorBase.position.y = -0.3;
+    floorBase.receiveShadow = true;
+    scene.add(floorBase);
 
-    //后墙
+    const topGeo = new THREE.PlaneGeometry(11.4, 8.4);
+    const topMat = new THREE.MeshStandardMaterial({color:0xfff4e2, roughness:0.72});
+    const topMesh = new THREE.Mesh(topGeo, topMat);
+    topMesh.rotation.x = -Math.PI / 2;
+    topMesh.position.y = 0.001;
+    topMesh.receiveShadow = true;
+    scene.add(topMesh);
+    floorMesh = topMesh;
+
+    // ========== 后墙 ==========
     const wallMat = new THREE.MeshStandardMaterial({color:0xffffdf, roughness:0.85});
     const wallHeight = 4.4;
     const backWallGeo = new THREE.BoxGeometry(12, wallHeight, 0.35);
@@ -234,7 +198,7 @@ function init3DScene() {
     strip.position.set(0, 0.09, -4.08);
     scene.add(strip);
 
-    //床
+    // ========== 床 ==========
     const bedGroup = new THREE.Group();
     const bedFrameGeo = new THREE.BoxGeometry(2.6, 0.5, 1.4);
     const bedFrameMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.35, metalness:0.15});
@@ -263,7 +227,7 @@ function init3DScene() {
     bedGroup.position.set(-1.5, 0, -2.0);
     scene.add(bedGroup);
 
-    //书桌
+    // ========== 书桌 ==========
     const deskGroup = new THREE.Group();
     const deskTopGeo = new THREE.BoxGeometry(1.9, 0.14, 0.8);
     const deskTopMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.3, metalness:0.12});
@@ -275,9 +239,9 @@ function init3DScene() {
     const legGeo = new THREE.BoxGeometry(0.12, 0.82, 0.12);
     const legMat = new THREE.MeshStandardMaterial({color:0x4aa8ff, roughness:0.4, metalness:0.25});
     const leg1 = new THREE.Mesh(legGeo, legMat); leg1.position.set(-0.89, 0.41, -0.34); deskGroup.add(leg1);
-    const leg2 = new THREE.Mesh(legGeo, legMat); leg2.position.set(-0.89, 0.41, 0.34); deskGroup.add(leg2);
-    const leg3 = new THREE.Mesh(legGeo, legMat); leg3.position.set(0.89, 0.41, 0.34); deskGroup.add(leg3);
-    const leg4 = new THREE.Mesh(legGeo, legMat); leg4.position.set(0.89, 0.41, -0.34); deskGroup.add(leg4);
+    const leg2 = new THREE.Mesh(legGeo, legMat); leg2.position.set(0.89, 0.41, -0.34); deskGroup.add(leg2);
+    const leg3 = new THREE.Mesh(legGeo, legMat); leg3.position.set(-0.89, 0.41, 0.34); deskGroup.add(leg3);
+    const leg4 = new THREE.Mesh(legGeo, legMat); leg4.position.set(0.89, 0.41, 0.34); deskGroup.add(leg4);
 
     const book1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.07, 0.32), new THREE.MeshStandardMaterial({color:0xff5c5c, roughness:0.5}));
     book1.position.set(0.35, 0.91, 0.06);
@@ -286,7 +250,7 @@ function init3DScene() {
     book2.position.set(0.55, 0.97, -0.06);
     deskGroup.add(book2);
 
-    //椅子
+    // 椅子
     const chairGroup = new THREE.Group();
     const chairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.1, 0.48), new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.4}));
     chairSeat.position.y = 0.44;
@@ -299,66 +263,68 @@ function init3DScene() {
     deskGroup.position.set(2.4, 0, -1.6);
     scene.add(deskGroup);
 
-    //吊扇
-    const fanPoleGeo = new THREE.CylinderGeometry(0.08,0.08,1.2,12);
+    // ========== 吊扇 ==========
+    const fanPoleGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.2);
     const fanPoleMat = new THREE.MeshStandardMaterial({color:0x333333,roughness:0.4});
     const fanPole = new THREE.Mesh(fanPoleGeo, fanPoleMat);
-    fanPole.position.set(-0.2,2.7,1.4);
+    fanPole.position.set(-0.2, 2.7, 1.4);
     fanPole.castShadow = true;
     scene.add(fanPole);
 
     const fanHeadGeo = new THREE.CylinderGeometry(0.22,0.22,0.22,16);
     const fanHeadMat = new THREE.MeshStandardMaterial({color:0x222222});
     const fanHead = new THREE.Mesh(fanHeadGeo, fanHeadMat);
-    fanHead.position.set(-0.2,3.3,1.4);
+    fanHead.position.set(-0.2, 3.3, 1.4);
     fanHead.castShadow = true;
     scene.add(fanHead);
 
     const fanBladesGroup = new THREE.Group();
-    const bladeMat = new THREE.MeshStandardMaterial({color:0xffd333, roughness:0.45});
-    for(let i=0;i<4;i++){
-        const bladeGeo = new THREE.BoxGeometry(0.12,1.15,0.07);
+    const bladeMat = new THREE.MeshStandardMaterial({color:0xffdd33, roughness:0.45});
+    for (let i = 0; i < 4; i++) {
+        const bladeGeo = new THREE.BoxGeometry(0.12, 1.15, 0.07);
         const blade = new THREE.Mesh(bladeGeo, bladeMat);
         blade.position.y = 0.57;
-        blade.rotation.z = Math.PI*2 /4 * i;
+        blade.rotation.z = (Math.PI * 2 / 4) * i;
+        blade.position.applyAxisAngle(new THREE.Vector3(0,0,1), (Math.PI * 2 / 4)*i);
         fanBladesGroup.add(blade);
     }
-    fanBladesGroup.position.set(-0.2,3.3,1.4);
+    fanBladesGroup.position.set(-0.2, 3.3, 1.4);
     scene.add(fanBladesGroup);
     fanMesh = fanBladesGroup;
 
-    //窗户
-    const winFrameGeo = new THREE.BoxGeometry(2.9,2.4,0.45);
+    // ========== 窗户 ==========
+    const winFrameGeo = new THREE.BoxGeometry(2.9, 2.4, 0.45);
     const winFrameMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.25, metalness:0.25});
     const winFrame = new THREE.Mesh(winFrameGeo, winFrameMat);
-    winFrame.position.set(2.3,1.9,-3.72);
+    winFrame.position.set(2.3, 1.9, -3.72);
     winFrame.castShadow = true;
     winFrame.receiveShadow = true;
     scene.add(winFrame);
 
-    const winGlassGeo = new THREE.PlaneGeometry(2.25,1.8);
-    const winMat = new THREE.MeshStandardMaterial({color:0x55b1ff, side:THREE.DoubleSide, transparent:true, opacity:0.92, roughness:0.05, metalness:0.55, emissive:0x113355, emissiveIntensity:0.35});
+    const winGlassGeo = new THREE.PlaneGeometry(2.25, 1.8);
+    const winMat = new THREE.MeshStandardMaterial({color:0x55b1ff, side:THREE.DoubleSide, transparent:true, opacity:0.92, roughness:0.05, metalness:0.55, emissive:0x13355, emissiveIntensity:0.35});
     windowMesh = new THREE.Mesh(winGlassGeo, winMat);
-    windowMesh.position.set(2.3,1.9,-3.48);
+    windowMesh.position.set(2.3, 1.9, -3.48);
     scene.add(windowMesh);
 
+    // 白色十字窗格
     const crossMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.25});
-    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.1,1.8,0.05), crossMat);
-    crossV.position.set(2.3,1.9,-3.46);
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, 0.05), crossMat);
+    crossV.position.set(2.3, 1.9, -3.46);
     scene.add(crossV);
-    const crossH = new THREE.Mesh(new THREE.BoxGeometry(2.25,0.1,0.05), crossMat);
-    crossH.position.set(2.3,1.9,-3.46);
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.1, 0.05), crossMat);
+    crossH.position.set(2.3, 1.9, -3.46);
     scene.add(crossH);
 
-    const sillGeo = new THREE.BoxGeometry(3.1,0.18,0.65);
-    const sillMat = new THREE.MeshStandardMaterial({color:0xfffdf4, roughness:0.35});
+    // 窗台
+    const sillGeo = new THREE.BoxGeometry(3.1, 0.18, 0.65);
+    const sillMat = new THREE.MeshStandardMaterial({color:0xffffd4, roughness:0.35});
     const sill = new THREE.Mesh(sillGeo, sillMat);
-    sill.position.set(2.3,0.79,-3.62);
+    sill.position.set(2.3, 0.79, -3.62);
     sill.castShadow = true;
     scene.add(sill);
 
     animate();
-    setInterval(renderAlertList,1000);
 }
 
 function animate() {
@@ -367,49 +333,31 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-function updateScene(nodeId, status, temp, hum) {
-    const node = dormInfo[nodeId];
-    node.temp = temp;
-    node.hum = hum;
-    const oldStatus = node.status;
-    node.status = status;
+// 增加max/min参数，更新全部面板，包含极值
+function updateScene(nodeId, status, t, h, maxT, minT, maxH, minH) {
+    // 更新顶部文字
+    document.getElementById("dormName").innerText = nodeId.toUpperCase();
+    document.getElementById("dormStatus").innerText = status;
+    document.getElementById("tempVal").innerText = t;
+    document.getElementById("humVal").innerText = h;
 
-    if(status !== "正常"){
-        if(oldStatus === "正常"){
-            node.errStartTime = Date.now();
-        }
-        node.continuousErrCount +=1;
+    // 最高最低温湿度，为空就显示--
+    document.getElementById("maxTemp").innerText = (maxT!==null) ? maxT : "--";
+    document.getElementById("minTemp").innerText = (minT!==null) ? minT : "--";
+    document.getElementById("maxHum").innerText = (maxH!==null) ? maxH : "--";
+    document.getElementById("minHum").innerText = (minH!==null) ? minH : "--";
+
+    let comfortText = "";
+    if(status === "正常"){
+        comfortText = "环境正常";
+        document.getElementById("warnBox").style.display="none";
     }else{
-        node.continuousErrCount = 0;
-        node.errStartTime = null;
+        comfortText = "环境异常 ⚠️";
+        document.getElementById("warnBox").style.display="block";
     }
+    document.getElementById("comfortVal").innerText = comfortText;
 
-    if(temp !== undefined && hum !== undefined){
-        if(temp > node.maxTemp) node.maxTemp = temp;
-        if(temp < node.minTemp) node.minTemp = temp;
-        if(hum > node.maxHum) node.maxHum = hum;
-        if(hum < node.minHum) node.minHum = hum;
-    }
-
-    currentDorm = nodeId;
-    document.getElementById("info").innerText = `当前宿舍：${nodeId} | 状态：${status}`;
-    if(temp !== undefined && hum !== undefined){
-        document.getElementById("tempVal").innerText = temp;
-        document.getElementById("humVal").innerText = hum;
-        document.getElementById("maxTemp").innerText = node.maxTemp;
-        document.getElementById("minTemp").innerText = node.minTemp;
-        document.getElementById("maxHum").innerText = node.maxHum;
-        document.getElementById("minHum").innerText = node.minHum;
-
-        let comfortText = "";
-        if(temp >=20 && temp <=26 && hum >=40 && hum <=65){
-            comfortText = "舒适👍";
-        }else{
-            comfortText = "环境异常⚠️";
-        }
-        document.getElementById("comfort").innerText = comfortText;
-    }
-
+    // 3D场景变化
     if (status === "正常") {
         fanRotateSpeed = 0;
         floorMesh.material.color.set(0xfff4e2);
@@ -424,51 +372,93 @@ function updateScene(nodeId, status, temp, hum) {
         windowMesh.material.color.set(0x1565a7);
         windowMesh.material.emissiveIntensity = 0.1;
     }
-    renderAlertList();
 }
 
-function switchDorm(dormId){
-    currentDorm = dormId;
-    document.getElementById("info").innerText = `当前宿舍：${dormId} | 等待数据`;
-    const node = dormInfo[dormId];
-    document.getElementById("tempVal").innerText = node.temp ?? "--";
-    document.getElementById("humVal").innerText = node.hum ?? "--";
-    document.getElementById("maxTemp").innerText = node.maxTemp;
-    document.getElementById("minTemp").innerText = node.minTemp;
-    document.getElementById("maxHum").innerText = node.maxHum;
-    document.getElementById("minHum").innerText = node.minHum;
-    document.getElementById("comfort").innerText = node.status === "正常" ? "舒适👍" : "环境异常⚠️";
+function updateDormData(nodeId, status, temp, hum){
+    const d = dormStatusData[nodeId];
+    if(!d) return;
+    d.temp = temp;
+    d.hum = hum;
+    d.status = status;
+
+    // ✅ 核心：自动更新极值（每个宿舍独立记录）
+    if(d.maxTemp === null || temp > d.maxTemp) d.maxTemp = temp;
+    if(d.minTemp === null || temp < d.minTemp) d.minTemp = temp;
+    if(d.maxHum === null || hum > d.maxHum) d.maxHum = hum;
+    if(d.minHum === null || hum < d.minHum) d.minHum = hum;
+
+    // 判断是否异常
+    if(status === "偏热" || status === "偏湿"){
+        d.isAbnormal = true;
+        d.errCount +=1;
+        // 如果没有定时器，开启定时器，每秒+1
+        if(!d.timer){
+            d.timer = setInterval(()=>{
+                d.continuousErrTime +=1;
+                calcPriorityDorm();
+            },1000);
+        }
+    }else{
+        // 恢复正常：停止计时，清零连续异常时长
+        d.isAbnormal = false;
+        d.continuousErrTime = 0;
+        if(d.timer){
+            clearInterval(d.timer);
+            d.timer = null;
+        }
+    }
+    calcPriorityDorm();
 }
 
-// MQTT连接
-const mqttUrl = 'ws://127.0.0.1:8083/mqtt';
-const client = mqtt.connect(mqttUrl);
-const mqttDom = document.getElementById("mqtt-status");
+//A1优先级计算
+function calcPriorityDorm(){
+    const arr = Object.entries(dormStatusData);
+    const abnormalList = arr.filter(item=>item[1].isAbnormal);
+    let result;
+    if(abnormalList.length === 0){
+        result = {name:"无", reason:"全部宿舍环境正常"};
+    }else{
+        abnormalList.sort((a,b)=>{
+            const d1 = a[1],d2 = b[1];
+            if(d2.continuousErrTime !== d1.continuousErrTime) return d2.continuousErrTime - d1.continuousErrTime;
+            if(d2.errCount !== d1.errCount) return d2.errCount - d1.errCount;
+            return a[0].localeCompare(b[0]);
+        });
+        const top = abnormalList[0];
+        result = {name: top[0].toUpperCase(), reason:`连续异常时长:${top[1].continuousErrTime}秒，异常次数:${top[1].errCount}`};
+    }
+    document.getElementById("priorityText").innerText = `优先关注宿舍：${result.name}，${result.reason}`;
+}
 
+// MQTT客户端
+const client = mqtt.connect('ws://127.0.0.1:8083/mqtt');
 client.on('connect', () => {
+    document.getElementById("mqttState").innerText = "✅已连接";
     console.log("MQTT连接成功");
-    mqttDom.innerText = `✅已连接 Broker (ws://127.0.0.1:8083)`;
-    mqttDom.style.color = "#008833";
     client.subscribe('dormmate/+/env');
 });
-client.on('close',()=>{
-    mqttDom.innerText = `❌MQTT断开`;
-    mqttDom.style.color = "#bb2222";
-})
-client.on('error',()=>{
-    mqttDom.innerText = `❌MQTT连接失败`;
-    mqttDom.style.color = "#bb2222";
-})
 client.on('message', function(topic, payload) {
     try {
         let msg = JSON.parse(payload.toString());
-        updateScene(msg.nodeId, msg.status, msg.temp, msg.hum);
+        updateDormData(msg.nodeId, msg.status, msg.temp, msg.hum);
+        // 如果当前查看的宿舍刚好是收到消息的宿舍，刷新3D和面板（包含极值）
+        if(msg.nodeId === currentViewDorm){
+            const d = dormStatusData[msg.nodeId];
+            updateScene(msg.nodeId, msg.status, msg.temp, msg.hum, d.maxTemp, d.minTemp, d.maxHum, d.minHum);
+        }
     } catch (e) {
         console.error("解析消息失败：", e);
     }
 });
+client.on('close',()=>{
+    document.getElementById("mqttState").innerText = "❌断开";
+});
 
-window.onload = init3DScene;
+// 页面加载完成后，先绑定按钮，再初始化3D
+window.onload = function(){
+    bindDormButtons();
+    init3DScene();
+}
 </script>
 </body>
 </html>
