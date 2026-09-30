@@ -30,6 +30,9 @@
         .status-idle{color:#666;}
         .status-handling{color:#ff9900;font-weight:bold;}
         .status-recovered{color:#00aa44;font-weight:bold;}
+        /* ========= A4新增复盘面板样式 ========= */
+        .event-panel{background:#fff;padding:16px;border-radius:8px;box-shadow:0 1px 3px #0000001a;margin-top:16px;}
+        .event-item{border-bottom:1px solid #eee;padding:10px 0;}
     </style>
 </head>
 <body>
@@ -43,7 +46,6 @@
             <button id="btnSleep">睡眠模式</button>
             <button id="btnAway">离寝模式</button>
         </div>
-        <div style="margin-top:8px;">当前操作宿舍：<span id="currentDormShow">dorm-a</span></div>
     </div>
 
     <table>
@@ -65,6 +67,12 @@
     <div class="log-area">
         <h3>事件日志</h3>
         <div id="logBox"></div>
+    </div>
+
+    <!-- ========= A4新增：事件复盘记录面板 ========= -->
+    <div class="event-panel">
+        <h3>事件复盘记录</h3>
+        <div id="eventBox"></div>
     </div>
 
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
@@ -105,6 +113,56 @@ const dormStatusData = {
 // 当前选中用来切换模式的宿舍
 let selectedDorm = "dorm-a";
 
+// ===================== A4 新增全局事件存储 =====================
+let eventList = [];
+
+// 获取当前宿舍正在进行的事件（一个宿舍同一时间只能有1个未结束事件）
+function getActiveEvent(dormId) {
+    return eventList.find(ev => ev.dorm === dormId && ev.endTime === null);
+}
+
+// 创建新事件记录
+function createNewEvent(dormId, abnormalMsg) {
+    const newEvent = {
+        dorm: dormId,
+        startTime: new Date().toLocaleTimeString(),
+        abnormalInfo: abnormalMsg,
+        priorityReason: "连续异常时长更长，优先处理",
+        actionList: [],
+        endTime: null,
+        finalResult: ""
+    };
+    eventList.push(newEvent);
+    renderEventPanel();
+    return newEvent;
+}
+
+// 渲染A4复盘面板
+function renderEventPanel() {
+    const box = document.getElementById("eventBox");
+    box.innerHTML = "";
+    if (eventList.length === 0) {
+        box.innerHTML = "<div>暂无事件记录，等待异常事件触发</div>";
+        return;
+    }
+    eventList.forEach(ev => {
+        const div = document.createElement("div");
+        div.className = "event-item";
+        const actionText = ev.actionList.length > 0 ? ev.actionList.join("；") : "无";
+        div.innerHTML = `
+            <div><strong>宿舍：${ev.dorm}</strong></div>
+            <div>开始时间：${ev.startTime}</div>
+            <div>异常信息：${ev.abnormalInfo}</div>
+            <div>优先原因：${ev.priorityReason}</div>
+            <div>处理动作：${actionText}</div>
+            <div>结束时间：${ev.endTime ?? "仍在处理中"}</div>
+            <div>最终结果：${ev.finalResult ?? "等待数据验证"}</div>
+        `;
+        box.appendChild(div);
+    })
+}
+// ==============================================================
+
 // MQTT客户端
 const client = mqtt.connect('ws://127.0.0.1:8083/mqtt');
 client.on('connect', ()=>{
@@ -125,6 +183,13 @@ function checkRecover(dormId, newTemp, newHum){
         dorm.processStatus = "recovered";
         dorm.status = "正常";
         addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 监测到数据恢复正常，事件结束`);
+        // ========= A4：事件标记结束，写入恢复结果 =========
+        const ev = getActiveEvent(dormId);
+        if(ev){
+            ev.endTime = new Date().toLocaleTimeString();
+            ev.finalResult = "环境指标恢复正常，事件闭环";
+            renderEventPanel();
+        }
     }else{
         addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 数据仍异常，继续监测`);
     }
@@ -141,7 +206,12 @@ client.on('message', function(topic, payload){
             dorm.hum = msg.hum;
             // A3：收到新数据，调用恢复判断
             checkRecover(msg.nodeId, msg.temp, msg.hum);
+            // ========= A4：检测到异常，新建事件 =========
+            if(msg.status !== "正常" && dorm.processStatus === "idle" && !getActiveEvent(msg.nodeId)){
+                createNewEvent(msg.nodeId, msg.status);
+            }
             renderTable();
+            renderEventPanel();
         }
     }catch(e){
         console.error(e);
@@ -250,6 +320,10 @@ function fanControl(dormId){
     if(dorm.fan){
         dorm.processStatus = "handling";
         addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 进入【处理中】，等待新数据验证恢复`);
+        // A4：把本次操作存入事件记录
+        const ev = getActiveEvent(dormId);
+        if(ev) ev.actionList.push("开启风扇");
+        renderEventPanel();
     }
     renderTable();
 }
@@ -267,6 +341,10 @@ function lightControl(dormId){
     if(dorm.light){
         dorm.processStatus = "handling";
         addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 进入【处理中】，等待新数据验证恢复`);
+        // A4：记录动作
+        const ev = getActiveEvent(dormId);
+        if(ev) ev.actionList.push("开启灯光");
+        renderEventPanel();
     }
     renderTable();
 }
@@ -284,6 +362,10 @@ function dehumidControl(dormId){
     if(dorm.dehumidifier){
         dorm.processStatus = "handling";
         addLog(`${new Date().toLocaleTimeString()} | ${dormId} | 进入【处理中】，等待新数据验证恢复`);
+        // A4：记录动作
+        const ev = getActiveEvent(dormId);
+        if(ev) ev.actionList.push("开启除湿器");
+        renderEventPanel();
     }
     renderTable();
 }
@@ -300,6 +382,7 @@ function addLog(text){
 window.onload = function(){
     renderTable();
     selectOperateDorm("dorm-a");
+    renderEventPanel();
 }
 </script>
 </body>

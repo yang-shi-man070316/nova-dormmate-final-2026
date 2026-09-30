@@ -114,6 +114,24 @@ body{
 </div>
 
 <script>
+// ========= A4新增：全局事件日志与事件添加工具函数 =========
+window.globalEventLog = [];
+function addEvent(dormId, eventType, content, reason="", action="", result=""){
+  const now = new Date();
+  const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2,"0")}`;
+  window.globalEventLog.push({
+    timestamp: timeStr,
+    dormId: dormId,
+    eventType: eventType,
+    content: content,
+    reason: reason,
+    action: action,
+    result: result
+  });
+  console.log("【A4事件】新增事件", window.globalEventLog);
+}
+// =========================================================
+
 let scene, camera, renderer;
 let fanMesh, windowMesh;
 let fanRotateSpeed = 0;
@@ -403,17 +421,16 @@ function updateScene(nodeId, status, t, h, maxT, minT, maxH, minH) {
     }
     document.getElementById("comfortVal").innerText = comfortText;
 
-    // 3D场景变化
+    // 3D场景颜色同步（和A2面板MQTT消息对齐）
     if (status === "正常") {
         floorMesh.material.color.set(0xfff4e2);
         windowMesh.material.color.set(0x55b1ff);
         windowMesh.material.emissiveIntensity = 0.35;
-    } else if (status === "偏热") {
-        floorMesh.material.color.set(0xff3f3f);
-    } else if (status === "偏湿") {
-        floorMesh.material.color.set(0x2fbdff);
-        windowMesh.material.color.set(0x1565a7);
-        windowMesh.material.emissiveIntensity = 0.1;
+    } else {
+        // 所有异常状态统一地板变红（温度过高/湿度过高都触发）
+        floorMesh.material.color.set(0xff3333);
+        windowMesh.material.color.set(0xff7777);
+        windowMesh.material.emissiveIntensity = 0.6;
     }
     updateDehumidVisual(d.dehumidifier);
     updateLightByMode(d.mode);
@@ -433,7 +450,7 @@ function updateDormData(nodeId, status, temp, hum){
     if(d.minHum === null || hum < d.minHum) d.minHum = hum;
 
     // 判断是否异常
-    if(status === "偏热" || status === "偏湿"){
+    if(status !== "正常"){
         d.isAbnormal = true;
         d.errCount +=1;
         // 如果没有定时器，开启定时器，每秒+1
@@ -443,8 +460,14 @@ function updateDormData(nodeId, status, temp, hum){
                 calcPriorityDorm();
             },1000);
         }
+        // A4：记录异常事件
+        addEvent(nodeId, "异常", "环境连续异常");
     }else{
         // 恢复正常：停止计时，清零连续异常时长
+        if(d.isAbnormal){
+            // A4：记录恢复事件（只有从异常→正常才记录）
+            addEvent(nodeId, "状态变更", "环境恢复正常", "", "", "已恢复正常");
+        }
         d.isAbnormal = false;
         d.continuousErrTime = 0;
         if(d.timer){
@@ -471,6 +494,8 @@ function calcPriorityDorm(){
         });
         const top = abnormalList[0];
         result = {name: top[0].toUpperCase(), reason:`连续异常时长:${top[1].continuousErrTime}秒，异常次数:${top[1].errCount}`};
+        // A4：记录优先关注事件
+        addEvent(top[0], "优先关注", "系统判定优先处理", result.reason);
     }
     document.getElementById("priorityText").innerText = `优先关注宿舍：${result.name}，${result.reason}`;
 }
@@ -499,8 +524,10 @@ client.on('message', function(topic, payload) {
         if(topic === "dormmate/control"){
             const cmd = msg;
             const dorm = dormStatusData[cmd.nodeId];
+            let actionName = "";
             if(cmd.device === "fan"){
                 dorm.fan = cmd.state;
+                actionName = cmd.state ? "开启风扇并通风" : "关闭风扇";
                 // ✅ 修改：只在当前查看的宿舍才更新风扇转速！
                 if(currentViewDorm === cmd.nodeId){
                     fanRotateSpeed = dorm.fan ? 0.08 : 0;
@@ -508,10 +535,15 @@ client.on('message', function(topic, payload) {
             }
             if(cmd.device === "light"){
                 dorm.light = cmd.state;
+                actionName = cmd.state ? "开启灯光" : "关闭灯光";
             }
             if(cmd.device === "dehumidifier"){
                 dorm.dehumidifier = cmd.state;
+                actionName = cmd.state ? "开启除湿机" : "关闭除湿机";
             }
+            // A4：记录用户执行操作事件
+            addEvent(cmd.nodeId, "执行操作", "用户下发设备控制", "", actionName);
+
             // 如果当前查看的宿舍正好是被控制的宿舍，刷新画面
             if(currentViewDorm === cmd.nodeId){
                 const d = dormStatusData[currentViewDorm];
