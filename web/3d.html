@@ -443,6 +443,8 @@ function updateScene(nodeId, status, t, h, maxT, minT, maxH, minH) {
 function updateDormData(nodeId, status, temp, hum){
     const d = dormStatusData[nodeId];
     if(!d) return;
+    // 无效温湿度数据不写入，避免undefined污染极值与面板
+    if(typeof temp !== "number" || typeof hum !== "number") return;
     d.temp = temp;
     d.hum = hum;
     d.status = status;
@@ -518,10 +520,16 @@ client.on('message', function(topic, payload) {
         let msg = JSON.parse(payload.toString());
         // 环境传感器数据
         if(topic.endsWith("/env")){
-            updateDormData(msg.nodeId, msg.status, msg.temp, msg.hum);
-            if(msg.nodeId === currentViewDorm){
-                const d = dormStatusData[msg.nodeId];
-                updateScene(msg.nodeId, msg.status, msg.temp, msg.hum, d.maxTemp, d.minTemp, d.maxHum, d.minHum);
+            // 兼容两种报文字段：temp/hum（A模块）与 temperature/humidity（旧M5）
+            const temp = msg.temp ?? msg.temperature;
+            const hum = msg.hum ?? msg.humidity;
+            // 温湿度必须都是数字才处理，否则忽略该报文（避免undefined写入面板与极值）
+            if(typeof temp === "number" && typeof hum === "number"){
+                updateDormData(msg.nodeId, msg.status, temp, hum);
+                if(msg.nodeId === currentViewDorm){
+                    const d = dormStatusData[msg.nodeId];
+                    updateScene(msg.nodeId, msg.status, temp, hum, d.maxTemp, d.minTemp, d.maxHum, d.minHum);
+                }
             }
         }
         // 接收A2页面设备控制指令（风扇/灯/除湿）

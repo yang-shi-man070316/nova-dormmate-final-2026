@@ -250,11 +250,15 @@ client.on('message', function(topic, payload){
         if(!msg || !msg.nodeId || !msg.status) return;
         const dorm = dormStatusData[msg.nodeId];
         if(!dorm) return;
+        // 兼容两种报文字段：temp/hum（A模块）与 temperature/humidity（旧M5）
+        const temp = msg.temp ?? msg.temperature;
+        const hum = msg.hum ?? msg.humidity;
         dorm.status = msg.status;
-        dorm.temp = msg.temp;
-        dorm.hum = msg.hum;
+        // 温湿度不是数字时保留上一次的值，避免显示undefined
+        if(typeof temp === "number") dorm.temp = temp;
+        if(typeof hum === "number") dorm.hum = hum;
         // A3：收到新数据，调用恢复判断
-        checkRecover(msg.nodeId, msg.temp, msg.hum);
+        checkRecover(msg.nodeId, temp, hum);
         // ========= A4：收到正常报文，未闭环事件标记恢复并闭环 =========
         if(msg.status === "正常"){
             closeActiveEvent(msg.nodeId);
