@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>A2 宿舍设备处理面板</title>
+    <style>
+        *{box-sizing:border-box;font-family:system-ui,sans-serif;}
+        body{padding:20px;margin:0;background:#f5f7fa;}
+        h1{text-align:center;color:#222;}
+        .state-box{background:#fff;padding:16px;border-radius:8px;margin-bottom:16px;box-shadow:0 1px 3px #0000001a;}
+        .mode-buttons button{padding:8px 14px;margin:4px;border:none;border-radius:4px;background:#4088dd;color:white;font-size:14px;cursor:pointer;}
+        .mode-buttons button.active{
+            background:#165DFF !important;
+            box-shadow:0 0 0 2px #80b8ff;
+        }
+        table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px #0000001a;margin-bottom:16px;}
+        th,td{padding:12px;text-align:center;}
+        th{background:#2c3e50;color:#fff;}
+        tr:nth-child(even){background:#fafafa;}
+        button{padding:6px 10px;margin:2px;border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:13px;}
+        .btn-fan{background:#e74c3c;}
+        .btn-light{background:#e74c3c;}
+        .btn-dehumid{background:#e74c3c;}
+        /* =====新增绿色按钮样式===== */
+        .btn-fan-on{background:#27ae60;}
+        .btn-light-on{background:#27ae60;}
+        .btn-dehumid-on{background:#27ae60;}
+        .log-area{background:#fff;padding:16px;border-radius:8px;box-shadow:0 1px 3px #0000001a;min-height:180px;}
+    </style>
+</head>
+<body>
+    <h1>宿舍设备处理面板</h1>
+
+    <div class="state-box">
+        <div>等待异常事件</div>
+        <div style="margin:6px 0;">事件状态: 等待</div>
+        <div class="mode-buttons">
+            <button id="btnStudy">学习模式</button>
+            <button id="btnSleep">睡眠模式</button>
+            <button id="btnAway">离寝模式</button>
+        </div>
+        <div style="margin-top:8px;">当前操作宿舍：<span id="currentDormShow">dorm-a</span></div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>宿舍</th>
+                <th>状态</th>
+                <th>温度</th>
+                <th>湿度</th>
+                <th>设备控制</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            <!-- 表格内容JS渲染 -->
+        </tbody>
+    </table>
+
+    <div class="log-area">
+        <h3>事件日志 (A2操作记录)</h3>
+        <div id="logBox"></div>
+    </div>
+
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+// 初始化宿舍状态，新增mode字段，原有全部保留
+const dormStatusData = {
+    "dorm-a": {
+        fan: false,
+        light: false,
+        dehumidifier: false,
+        status: "正常",
+        temp: 25,
+        hum: 60,
+        mode:"study"
+    },
+    "dorm-b": {
+        fan: false,
+        light: false,
+        dehumidifier: false,
+        status: "正常",
+        temp: 25,
+        hum: 60,
+        mode:"study"
+    },
+    "dorm-c": {
+        fan: false,
+        light: false,
+        dehumidifier: false,
+        status: "正常",
+        temp: 25,
+        hum: 60,
+        mode:"study"
+    }
+};
+// 当前选中用来切换模式的宿舍
+let selectedDorm = "dorm-a";
+
+// MQTT客户端
+const client = mqtt.connect('ws://127.0.0.1:8083/mqtt');
+client.on('connect', ()=>{
+    console.log("A2 MQTT连接成功");
+    client.subscribe('dormmate/+/env');
+    client.subscribe('dormmate/mode');
+})
+
+// 接收环境数据
+client.on('message', function(topic, payload){
+    try{
+        let msg = JSON.parse(payload.toString());
+        const dorm = dormStatusData[msg.nodeId];
+        if(dorm){
+            dorm.status = msg.status;
+            dorm.temp = msg.temp;
+            dorm.hum = msg.hum;
+            renderTable();
+        }
+    }catch(e){
+        console.error(e);
+    }
+})
+
+// 渲染表格
+function renderTable(){
+    const tb = document.getElementById("tableBody");
+    tb.innerHTML = "";
+    for(let id in dormStatusData){
+        const d = dormStatusData[id];
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${id}</td>
+            <td>${d.status}</td>
+            <td>${d.temp} ℃</td>
+            <td>${d.hum} %RH</td>
+            <td>
+                <button class="${d.fan ? 'btn-fan-on' : 'btn-fan'}" onclick="fanControl('${id}')">风扇</button>
+                <button class="${d.light ? 'btn-light-on' : 'btn-light'}" onclick="lightControl('${id}')">灯</button>
+                <button class="${d.dehumidifier ? 'btn-dehumid-on' : 'btn-dehumid'}" onclick="dehumidControl('${id}')">除湿</button>
+                <button onclick="selectOperateDorm('${id}')" style="background:#3498db;">选择操作</button>
+            </td>
+        `
+        tb.appendChild(tr);
+    }
+}
+
+// 选中要操作模式的宿舍
+function selectOperateDorm(dormId){
+    selectedDorm = dormId;
+    document.getElementById("currentDormShow").innerText = dormId;
+    refreshModeButtonUI();
+}
+
+// 模式按钮事件
+document.getElementById("btnStudy").onclick = function(){
+    dormStatusData[selectedDorm].mode = "study";
+    client.publish("dormmate/mode", JSON.stringify({
+        nodeId: selectedDorm,
+        mode:"study"
+    }));
+    addLog(`${new Date().toLocaleTimeString()} | ${selectedDorm} | 切换【学习模式】`);
+    refreshModeButtonUI();
+}
+document.getElementById("btnSleep").onclick = function(){
+    dormStatusData[selectedDorm].mode = "sleep";
+    client.publish("dormmate/mode", JSON.stringify({
+        nodeId: selectedDorm,
+        mode:"sleep"
+    }));
+    addLog(`${new Date().toLocaleTimeString()} | ${selectedDorm} | 切换【睡眠模式】`);
+    refreshModeButtonUI();
+}
+document.getElementById("btnAway").onclick = function(){
+    const dorm = dormStatusData[selectedDorm];
+    dorm.mode = "away";
+    //离寝模式，自动关闭全部设备
+    dorm.fan = false;
+    dorm.light = false;
+    dorm.dehumidifier = false;
+    client.publish("dormmate/control", JSON.stringify({nodeId:selectedDorm, device:"fan", state:false}));
+    client.publish("dormmate/control", JSON.stringify({nodeId:selectedDorm, device:"light", state:false}));
+    client.publish("dormmate/control", JSON.stringify({nodeId:selectedDorm, device:"dehumidifier", state:false}));
+    client.publish("dormmate/mode", JSON.stringify({
+        nodeId: selectedDorm,
+        mode:"away"
+    }));
+    addLog(`${new Date().toLocaleTimeString()} | ${selectedDorm} | 切换【离寝模式】，自动关闭全部设备`);
+    refreshModeButtonUI();
+    renderTable();
+}
+
+// 更新模式按钮高亮
+function refreshModeButtonUI(){
+    document.querySelectorAll(".mode-buttons button").forEach(btn=>btn.classList.remove("active"));
+    const m = dormStatusData[selectedDorm].mode;
+    if(m === "study") document.getElementById("btnStudy").classList.add("active");
+    if(m === "sleep") document.getElementById("btnSleep").classList.add("active");
+    if(m === "away") document.getElementById("btnAway").classList.add("active");
+}
+
+// 风扇控制
+function fanControl(dormId){
+    const dorm = dormStatusData[dormId];
+    dorm.fan = !dorm.fan;
+    client.publish("dormmate/control", JSON.stringify({
+        nodeId:dormId,
+        device:"fan",
+        state:dorm.fan
+    }));
+    const text = dorm.fan ? "开启风扇" : "关闭风扇";
+    addLog(`${new Date().toLocaleTimeString()} | ${dormId} | ${text}`);
+    renderTable();
+}
+// 灯控制
+function lightControl(dormId){
+    const dorm = dormStatusData[dormId];
+    dorm.light = !dorm.light;
+    client.publish("dormmate/control", JSON.stringify({
+        nodeId:dormId,
+        device:"light",
+        state:dorm.light
+    }));
+    const text = dorm.light ? "开启灯" : "关闭灯";
+    addLog(`${new Date().toLocaleTimeString()} | ${dormId} | ${text}`);
+    renderTable();
+}
+// 除湿控制
+function dehumidControl(dormId){
+    const dorm = dormStatusData[dormId];
+    dorm.dehumidifier = !dorm.dehumidifier;
+    client.publish("dormmate/control", JSON.stringify({
+        nodeId:dormId,
+        device:"dehumidifier",
+        state:dorm.dehumidifier
+    }));
+    const text = dorm.dehumidifier ? "开启除湿" : "关闭除湿";
+    addLog(`${new Date().toLocaleTimeString()} | ${dormId} | ${text}`);
+    renderTable();
+}
+
+// 添加日志
+function addLog(text){
+    const logBox = document.getElementById("logBox");
+    const div = document.createElement("div");
+    div.innerText = text;
+    logBox.appendChild(div);
+}
+
+// 页面初始化
+window.onload = function(){
+    renderTable();
+    selectOperateDorm("dorm-a");
+}
+</script>
+</body>
+</html>

@@ -98,6 +98,7 @@ body{
             <div>🌡 当前温度：<span id="tempVal">--</span> ℃</div>
             <div>💧 当前湿度：<span id="humVal">--</span> %RH</div>
             <div>✅ 舒适度：<span id="comfortVal">--</span></div>
+            <div>🌀 除湿机：<span id="dehumidVal">--</span></div>
             <div>📊 最高温：<span id="maxTemp">--</span> ℃</div>
             <div>📊 最低温：<span id="minTemp">--</span> ℃</div>
             <div>📊 最高湿：<span id="maxHum">--</span> %RH</div>
@@ -117,11 +118,14 @@ let scene, camera, renderer;
 let fanMesh, windowMesh;
 let fanRotateSpeed = 0;
 let floorMesh;
-// 全局存储每个宿舍数据，新增max/min极值
+let dehumidifierMesh; //除湿机模型
+let ambientLight; //全局环境光（用于模式切换）
+
+// 全局存储每个宿舍数据，新增max/min极值 + 设备状态 fan light dehumidifier + mode模式
 const dormStatusData = {
-    "dorm-a": { continuousErrTime:0, errCount:0, isAbnormal:false, timer:null, temp:0, hum:0, status:"正常", maxTemp:null, minTemp:null, maxHum:null, minHum:null },
-    "dorm-b": { continuousErrTime:0, errCount:0, isAbnormal:false, timer:null, temp:0, hum:0, status:"正常", maxTemp:null, minTemp:null, maxHum:null, minHum:null },
-    "dorm-c": { continuousErrTime:0, errCount:0, isAbnormal:false, timer:null, temp:0, hum:0, status:"正常", maxTemp:null, minTemp:null, maxHum:null, minHum:null }
+    "dorm-a": { continuousErrTime:0, errCount:0, isAbnormal:false, timer:null, temp:0, hum:0, status:"正常", maxTemp:null, minTemp:null, maxHum:null, minHum:null, fan:false, light:false, dehumidifier:false, mode:"study" },
+    "dorm-b": { continuousErrTime:0, errCount:0, isAbnormal:false, timer:null, temp:0, hum:0, status:"正常", maxTemp:null, minTemp:null, maxHum:null, minHum:null, fan:false, light:false, dehumidifier:false, mode:"study" },
+    "dorm-c": { continuousErrTime:0, errCount:0, isAbnormal:false, timer:null, temp:0, hum:0, status:"正常", maxTemp:null, minTemp:null, maxHum:null, minHum:null, fan:false, light:false, dehumidifier:false, mode:"study" }
 };
 // 当前选中查看的宿舍（点击按钮切换）
 let currentViewDorm = "dorm-a";
@@ -134,7 +138,11 @@ function bindDormButtons(){
             currentViewDorm = dormId;
             // 读取该宿舍保存的数据，刷新3D画面+全部面板（包含极值）
             const d = dormStatusData[dormId];
+            // ✅切换宿舍时，加载这个宿舍自己的风扇状态
+            fanRotateSpeed = d.fan ? 0.08 : 0;
             updateScene(dormId, d.status, d.temp, d.hum, d.maxTemp, d.minTemp, d.maxHum, d.minHum);
+            updateLightByMode(d.mode);
+            updateDehumidVisual(d.dehumidifier);
         })
     })
 }
@@ -162,7 +170,7 @@ function init3DScene() {
     dirLight.shadow.camera.bottom = -12;
     scene.add(dirLight);
 
-    const ambientLight = new THREE.AmbientLight(0xffffd4, 0.55);
+    ambientLight = new THREE.AmbientLight(0xffffd4, 0.55);
     scene.add(ambientLight);
 
     // ========== 地板 ==========
@@ -324,7 +332,42 @@ function init3DScene() {
     sill.castShadow = true;
     scene.add(sill);
 
+    // ========== 新增：除湿机模型（房间左下角） ==========
+    const dehumidGeo = new THREE.BoxGeometry(1.0, 1.2, 0.55);
+    const dehumidMat = new THREE.MeshStandardMaterial({color:0x888888, roughness:0.6, emissive:0x000000, emissiveIntensity:0});
+    dehumidifierMesh = new THREE.Mesh(dehumidGeo, dehumidMat);
+    dehumidifierMesh.position.set(-4.2,0.6,-2.2);
+    dehumidifierMesh.castShadow = true;
+    scene.add(dehumidifierMesh);
+
     animate();
+}
+
+// 除湿机视觉更新
+function updateDehumidVisual(isOn){
+    if(isOn){
+        dehumidifierMesh.material.color.setHex(0x44aaff);
+        dehumidifierMesh.material.emissive.setHex(0x0077ff);
+        dehumidifierMesh.material.emissiveIntensity = 0.6;
+    }else{
+        dehumidifierMesh.material.color.setHex(0x888888);
+        dehumidifierMesh.material.emissive.setHex(0x000000);
+        dehumidifierMesh.material.emissiveIntensity = 0;
+    }
+}
+
+// 模式灯光控制
+function updateLightByMode(mode){
+    if(mode === "study"){
+        ambientLight.intensity = 0.55;
+        ambientLight.color.setHex(0xffffd4);
+    }else if(mode === "sleep"){
+        ambientLight.intensity = 0.22;
+        ambientLight.color.setHex(0xffddaa);
+    }else if(mode === "away"){
+        ambientLight.intensity = 0.05;
+        ambientLight.color.setHex(0x222222);
+    }
 }
 
 function animate() {
@@ -347,6 +390,9 @@ function updateScene(nodeId, status, t, h, maxT, minT, maxH, minH) {
     document.getElementById("maxHum").innerText = (maxH!==null) ? maxH : "--";
     document.getElementById("minHum").innerText = (minH!==null) ? minH : "--";
 
+    const d = dormStatusData[nodeId];
+    document.getElementById("dehumidVal").innerText = d.dehumidifier ? "开启 ✅" : "关闭 ❌";
+
     let comfortText = "";
     if(status === "正常"){
         comfortText = "环境正常";
@@ -359,19 +405,18 @@ function updateScene(nodeId, status, t, h, maxT, minT, maxH, minH) {
 
     // 3D场景变化
     if (status === "正常") {
-        fanRotateSpeed = 0;
         floorMesh.material.color.set(0xfff4e2);
         windowMesh.material.color.set(0x55b1ff);
         windowMesh.material.emissiveIntensity = 0.35;
     } else if (status === "偏热") {
-        fanRotateSpeed = 0.08;
         floorMesh.material.color.set(0xff3f3f);
     } else if (status === "偏湿") {
-        fanRotateSpeed = 0;
         floorMesh.material.color.set(0x2fbdff);
         windowMesh.material.color.set(0x1565a7);
         windowMesh.material.emissiveIntensity = 0.1;
     }
+    updateDehumidVisual(d.dehumidifier);
+    updateLightByMode(d.mode);
 }
 
 function updateDormData(nodeId, status, temp, hum){
@@ -436,15 +481,51 @@ client.on('connect', () => {
     document.getElementById("mqttState").innerText = "✅已连接";
     console.log("MQTT连接成功");
     client.subscribe('dormmate/+/env');
+    client.subscribe('dormmate/control');
+    client.subscribe('dormmate/mode');
 });
 client.on('message', function(topic, payload) {
     try {
         let msg = JSON.parse(payload.toString());
-        updateDormData(msg.nodeId, msg.status, msg.temp, msg.hum);
-        // 如果当前查看的宿舍刚好是收到消息的宿舍，刷新3D和面板（包含极值）
-        if(msg.nodeId === currentViewDorm){
-            const d = dormStatusData[msg.nodeId];
-            updateScene(msg.nodeId, msg.status, msg.temp, msg.hum, d.maxTemp, d.minTemp, d.maxHum, d.minHum);
+        // 环境传感器数据
+        if(topic.endsWith("/env")){
+            updateDormData(msg.nodeId, msg.status, msg.temp, msg.hum);
+            if(msg.nodeId === currentViewDorm){
+                const d = dormStatusData[msg.nodeId];
+                updateScene(msg.nodeId, msg.status, msg.temp, msg.hum, d.maxTemp, d.minTemp, d.maxHum, d.minHum);
+            }
+        }
+        // 接收A2页面设备控制指令（风扇/灯/除湿）
+        if(topic === "dormmate/control"){
+            const cmd = msg;
+            const dorm = dormStatusData[cmd.nodeId];
+            if(cmd.device === "fan"){
+                dorm.fan = cmd.state;
+                // ✅ 修改：只在当前查看的宿舍才更新风扇转速！
+                if(currentViewDorm === cmd.nodeId){
+                    fanRotateSpeed = dorm.fan ? 0.08 : 0;
+                }
+            }
+            if(cmd.device === "light"){
+                dorm.light = cmd.state;
+            }
+            if(cmd.device === "dehumidifier"){
+                dorm.dehumidifier = cmd.state;
+            }
+            // 如果当前查看的宿舍正好是被控制的宿舍，刷新画面
+            if(currentViewDorm === cmd.nodeId){
+                const d = dormStatusData[currentViewDorm];
+                updateScene(currentViewDorm, d.status, d.temp, d.hum, d.maxTemp, d.minTemp, d.maxHum, d.minHum);
+            }
+        }
+        // 接收模式切换消息
+        if(topic === "dormmate/mode"){
+            const cmd = msg;
+            const dorm = dormStatusData[cmd.nodeId];
+            dorm.mode = cmd.mode;
+            if(currentViewDorm === cmd.nodeId){
+                updateLightByMode(dorm.mode);
+            }
         }
     } catch (e) {
         console.error("解析消息失败：", e);
