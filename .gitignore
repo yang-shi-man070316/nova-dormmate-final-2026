@@ -1,0 +1,7 @@
+# 小程序配置，包含appid，禁止提交
+project.config.json
+# 其他忽略项
+*.log
+.DS_Store
+.idea/
+.vscode/
