@@ -2,6 +2,8 @@
 <head>
 <meta charset="utf-8">
 <title>宿舍环境统计报告</title>
+<!-- C3：ML 辅助判断数据文件（由 C3_generate_report.py 生成，纯静态加载，无后端） -->
+<script src="report_data.js"></script>
 <style>
 *{
     box-sizing: border-box;
@@ -159,6 +161,30 @@ table.dataframe tbody tr:hover{
         font-size: 17px;
     }
 }
+/* ========== C3 ML 辅助异常判断样式 ========== */
+.ml-model-card{
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-left: 5px solid #15aabf;
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(31,42,55,.05);
+    padding: 14px 22px;
+    margin: 0 0 18px;
+    line-height: 1.9;
+    color: #1f2a37;
+    text-align: left;
+}
+.ml-sub{
+    margin: 26px 0 10px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1f2a37;
+    text-align: left;
+}
+.rule-normal{color: #2b8a3e; font-weight: 600;}
+.rule-warn{color: #e8590c; font-weight: 600;}
+.ml-normal{color: #2b8a3e; font-weight: 600;}
+.ml-abnormal{color: #c92a2a; font-weight: 600;}
 </style>
 </head>
 <body>
@@ -228,6 +254,75 @@ table.dataframe tbody tr:hover{
     <!-- ========== B3 今日温湿度历史摘要 ========== -->
     <h2>今日温湿度历史摘要</h2>
     <div id="b3Summary" class="b3-summary"></div>
+
+    <!-- ========== C3 ML 辅助异常判断（读取 report_data.js，纯静态无后端） ========== -->
+    <h2>ML 辅助异常判断</h2>
+    <div id="mlModelCard" class="ml-model-card"></div>
+
+    <div class="ml-sub">最新历史数据对照（固定规则 + ML 并排）</div>
+    <div class="table-scroll">
+    <table class="dataframe">
+      <thead>
+        <tr>
+          <th>time</th>
+          <th>temperature</th>
+          <th>humidity</th>
+          <th>CSV原状态</th>
+          <th>固定规则</th>
+          <th>ML判定</th>
+          <th>ML分数</th>
+        </tr>
+      </thead>
+      <tbody id="mlHistoryTbody">
+      </tbody>
+    </table>
+    </div>
+
+    <div class="ml-sub">C2 待测样本对照（独立定义，未参与训练）</div>
+    <div class="table-scroll">
+    <table class="dataframe">
+      <thead>
+        <tr>
+          <th>温度</th>
+          <th>湿度</th>
+          <th>场景</th>
+          <th>固定规则</th>
+          <th>ML判定</th>
+          <th>ML分数</th>
+        </tr>
+      </thead>
+      <tbody id="mlTestTbody">
+      </tbody>
+    </table>
+    </div>
+
+    <div class="ml-sub">案例检索：固定规则正常、ML判异常</div>
+    <div id="mlCases" class="b3-summary"></div>
+
+    <!-- ========== C4 ML 判断不理想案例（保留，静态文字说明） ========== -->
+    <h2>ML 判断不理想案例（保留）</h2>
+    <div class="b3-summary">
+      <div><b>案例一（ML 偏严）：</b>2026-09-26T12:22:01.223Z　温度 22℃　湿度 40%RH（历史第 46 行，同为 C2 待测样本 #2）</div>
+      <div>· CSV 原状态（旧口径 20~30℃/45~70%）：偏干（40 &lt; 45）</div>
+      <div>· 固定规则（现行 22~28℃/40~70%）：正常（恰好落在正常区间边界内）</div>
+      <div>· ML 孤立森林：明显不同（predict=-1，score=-0.032）</div>
+      <div>　不理想之处：该样本本身就是训练集里的点，模型却把它判为「与历史明显不同」。</div>
+
+      <div><b>案例二（ML 偏松）：</b>2026-09-26T12:23:33.443Z　温度 20℃　湿度 44%RH（历史第 50 行）</div>
+      <div>· CSV 原状态（旧口径）：偏干（44 &lt; 45）</div>
+      <div>· 固定规则（现行）：偏冷（20 &lt; 22，温度优先）</div>
+      <div>· ML 孤立森林：接近常态（predict=1，score=0.016）</div>
+      <div>　不理想之处：固定规则明确判异常，模型却认为它与历史常态无异；历史中 16~21℃ 的偏冷/偏干簇共 9 条，密度足够高，被无监督模型学成了「常态的一部分」。</div>
+
+      <div><b>正反对照小结：</b>两个案例方向相反——(22,40) 位于簇间稀疏过渡带，被 ML 误判为异常（偏严）；(20,44) 位于密集异常簇内部，被 ML 误判为常态（偏松）。根因相同：IsolationForest 学的是数据分布密度而非规则边界，异常值只要在训练集中反复出现就会被视为常态，稀疏出现的边界值反而被判离群。</div>
+
+      <div><b>可能原因：</b></div>
+      <div>1. 历史样本量少（仅 50 条），偏干/偏冷异常簇只有数条，模型对簇间过渡带的密度估计不稳定；</div>
+      <div>2. 数据呈双簇结构：常态密集区（约 22~27℃/48~61%）与多组稀疏异常簇并存；(22,40) 处于簇间稀疏过渡带被判离群，而 (20,44) 处于异常簇内部反而被判常态；</div>
+      <div>3. contamination="auto" 对 50 条小样本的判定阈值偏严，常态边界被压缩到密集核心；</div>
+      <div>4. 训练集后半段异常样本占比高（19/50），模型学到的「常态区域」明显窄于固定规则区间（网格扫描 327/793 被判异常），同时异常簇内部点又被当作常态。</div>
+      <div><b>结果回写：</b>全部 50 条历史的双重判定已回写到 web/dormmate_ml_results.csv（独立结果文件，dormmate.csv 主数据保持只读未改动，如需并入主 CSV 请手动合并）。</div>
+    </div>
 </div>
 
 <script>
@@ -359,6 +454,87 @@ renderB3Summary();
 window.addEventListener("storage", function(e){
     if(e.key === "eventRecords") renderB3Summary();
 });
+// ==============================================================
+
+// ========== C3 ML 辅助异常判断（数据来自 report_data.js，纯静态加载） ==========
+function fmtTime(t){
+    const d = new Date(t);
+    return isNaN(d.getTime()) ? t : d.toLocaleString();
+}
+function mlCell(v){
+    return v === 1
+        ? '<span class="ml-normal">接近常态</span>'
+        : '<span class="ml-abnormal">明显不同</span>';
+}
+function ruleCell(r){
+    const cls = r === "正常" ? "rule-normal" : "rule-warn";
+    return `<span class="${cls}">${r}</span>`;
+}
+function renderMLModule(){
+    const d = window.REPORT_DATA;
+    const card = document.getElementById("mlModelCard");
+    if(!d){
+        card.innerHTML = "未找到 report_data.js：请先运行 <b>py C3_generate_report.py</b> 生成数据，再刷新本页。";
+        return;
+    }
+
+    card.innerHTML = `
+        生成时间：${d.generated_at}　|　数据：${d.csv}（共 ${d.train_rows} 条，训练列 temperature/humidity）<br>
+        模型：${d.model}　|　ML口径：1=接近常态，-1=与历史明显不同　|　固定规则：22~28℃ / 40~70%（温度优先）<br>
+        更换 CSV 后运行 py C3_generate_report.py 再刷新本页，即可看到最新结果；
+        CSV原状态列为旧口径（20~30℃/45~70%）生成，与现行固定规则可能存在差异。`;
+
+    // 表1：最新历史数据对照（回顾性打分：模型基于全量历史训练）
+    const ht = document.getElementById("mlHistoryTbody");
+    ht.innerHTML = "";
+    d.history.forEach(r=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${fmtTime(r.time)}</td>
+            <td>${r.temperature}</td>
+            <td>${r.humidity}</td>
+            <td>${r.csv_status}</td>
+            <td>${ruleCell(r.rule)}</td>
+            <td>${mlCell(r.ml)}</td>
+            <td>${r.ml_score}</td>`;
+        ht.appendChild(tr);
+    });
+
+    // 表2：C2 待测样本对照（独立定义、未参与训练）
+    const tt = document.getElementById("mlTestTbody");
+    tt.innerHTML = "";
+    d.test_samples.forEach(r=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${r.temp}℃</td>
+            <td>${r.hum}%</td>
+            <td>${r.desc}</td>
+            <td>${ruleCell(r.rule)}</td>
+            <td>${mlCell(r.ml)}</td>
+            <td>${r.ml_score}</td>`;
+        tt.appendChild(tr);
+    });
+
+    // 案例检索
+    const box = document.getElementById("mlCases");
+    box.innerHTML = "";
+    if(d.cases.length === 0){
+        box.innerText = "本次未找到「固定规则判定正常、ML判定异常」的案例（如实记录）。";
+    }else{
+        d.cases.forEach(c=>{
+            const div = document.createElement("div");
+            div.innerText = `· ${c.temp}℃ / ${c.hum}% （${c.desc}）：固定规则=正常，ML=明显不同（score ${c.ml_score}）` +
+                (c.note ? ` —— ${c.note}` : "");
+            box.appendChild(div);
+        });
+        const g = document.createElement("div");
+        g.innerText = `补充观察：固定规则正常区间网格扫描 ${d.grid.total} 个点，其中 ${d.grid.anomaly} 个被 ML 判为异常，` +
+            `ML 的常态区域（贴近历史密集区）明显窄于固定规则区间。`;
+        box.appendChild(g);
+    }
+}
+// 页面加载立即渲染
+renderMLModule();
 // ==============================================================
 </script>
 </body>

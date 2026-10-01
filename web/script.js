@@ -8,11 +8,20 @@ const historyList = document.getElementById('historyList');
 const startAsrBtn = document.getElementById('startAsrBtn');
 const asrResultText = document.getElementById('asrResultText');
 const takePhotoBtn = document.getElementById('takePhotoBtn');
-const closePhotoBtn = document.getElementById('closePhotoBtn');
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 let mediaStream = null;
 let records = [];
+let lastStatus = ""; // 最近一次分析的状态，供TTS/ASR朗读使用
+
+// 状态对应的颜色样式（与style.css中 .st-* 类配套）
+const statusColorMap = {
+    "正常": "st-normal",
+    "偏热": "st-hot",
+    "偏冷": "st-cold",
+    "偏湿": "st-wet",
+    "偏干": "st-dry"
+};
 
 // 分析环境按钮
 analyseBtn.onclick = function(){
@@ -31,20 +40,30 @@ analyseBtn.onclick = function(){
         return;
     }
 
+    // 固定阈值判断（与A2.html checkRecover口径一致）：
+    // 正常区间 温度22~28℃、湿度40~70%RH；温度异常优先于湿度异常
     let status = "";
     let advice = "";
-    if(temp >=25){
+    if(temp > 28){
         status = "偏热";
         advice = "建议通风降温";
-    }else if(temp <=18){
+    }else if(temp < 22){
         status = "偏冷";
         advice = "注意保暖";
+    }else if(hum > 70){
+        status = "偏湿";
+        advice = "建议开启除湿";
+    }else if(hum < 40){
+        status = "偏干";
+        advice = "建议加湿或通风";
     }else{
         status = "正常";
         advice = "环境舒适";
     }
     statusText.innerText = "当前状态：" + status;
+    statusText.className = "status-box " + (statusColorMap[status] || "");
     adviceText.innerText = "建议:"+advice;
+    lastStatus = status;
 
     // 新增记录
     let now = new Date();
@@ -133,8 +152,9 @@ closeCamBtn.onclick = function(){
 // TTS朗读
 const ttsBtn = document.getElementById('ttsBtn');
 ttsBtn.onclick = function(){
-    let statusTextContent = statusText.innerText;
-    const utter = new SpeechSynthesisUtterance("当前环境状态：" + statusTextContent);
+    // 朗读最近一次分析状态（避免重复"当前状态"前缀）
+    const content = lastStatus ? ("当前环境状态：" + lastStatus) : "尚未分析环境";
+    const utter = new SpeechSynthesisUtterance(content);
     utter.lang = 'zh-CN';
     speechSynthesis.speak(utter);
 }
@@ -156,8 +176,8 @@ startAsrBtn.onclick = function() {
 
         // 指令1：朗读状态
         if(text.includes("朗读状态")){
-            let statusTextContent = statusText.innerText;
-            const utter = new SpeechSynthesisUtterance("当前环境状态：" + statusTextContent);
+            const content = lastStatus ? ("当前环境状态：" + lastStatus) : "尚未分析环境";
+            const utter = new SpeechSynthesisUtterance(content);
             utter.lang = 'zh-CN';
             speechSynthesis.speak(utter);
         }

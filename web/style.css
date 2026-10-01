@@ -1,83 +1,141 @@
-body {
-    background-color: #f5f7fa;
-    font-family: "Microsoft Yahei", sans-serif;
+*{
+    box-sizing: border-box;
+}
+body{
+    margin: 0;
+    min-height: 100vh;
+    padding: 24px 16px;
+    background: linear-gradient(180deg, #eef3f8 0%, #edf1f6 100%);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #1f2a37;
 }
 /* 外层白色卡片，核心！ */
-.card {
+.card{
     background: #ffffff;
-    border-radius: 20px;
-    padding: 30px;
-    max-width: 600px;
-    margin: 30px auto;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 28px 30px;
+    max-width: 640px;
+    margin: 0 auto;
+    box-shadow: 0 4px 16px rgba(31, 42, 55, 0.08);
 }
-h1 {
-    color: #2563eb;
-    margin-top:0;
+h1{
+    margin: 0 0 6px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid #eef2f7;
+    color: #16324f;
+    font-size: 26px;
+    letter-spacing: 0.04em;
+}
+h3{
+    margin: 22px 0 10px;
+    color: #25617e;
+    font-size: 16px;
 }
 .line-item{
-    margin:12px 0;
-    font-size:18px;
+    margin: 12px 0;
+    font-size: 16px;
 }
 input{
-    padding:8px;
-    border-radius:10px;
-    border:1px solid #ddd;
-    font-size:18px;
-    width:120px;
+    padding: 9px 12px;
+    border: 1px solid #cfd8e3;
+    border-radius: 10px;
+    background: #fbfcfe;
+    font-size: 16px;
+    width: 130px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus{
+    border-color: #25617e;
+    box-shadow: 0 0 0 3px rgba(37, 97, 126, 0.15);
 }
 button{
-    background:#2563eb;
-    color:white;
-    border:none;
-    padding:10px 24px;
-    border-radius:12px;
-    font-size:18px;
-    cursor:pointer;
+    background: #25617e;
+    color: #ffffff;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 10px;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
 }
-.status-box{
-    background:#fee2e2;
-    color:#dc2626;
-    padding:10px 20px;
-    border-radius:12px;
-    display:inline-block;
-    font-size:18px;
+button:hover{
+    background: #1d4d66;
 }
-.history-item{
-    margin: 10px 0;
-    padding: 12px 14px;
-    background-color: #f0f6ff;
-    border-radius: 8px;
-    border-left: 4px solid #4a90e2;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+button:active{
+    transform: scale(0.98);
 }
-.action-row {
+.action-row{
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    gap: 24px;
-    margin: 20px 0;
+    gap: 14px;
+    margin: 18px 0;
 }
-
-.action-row button,
-.action-row .status-box {
-    width: 180px;       /* 两个框统一固定宽度，可改 160/180/200 */
-    text-align: center; /* 文字居中 */
-    line-height: 40px;  /* 高度对齐按钮 */
+.action-row button{
+    min-width: 150px;
+    text-align: center;
 }
-
+/* 状态框：默认灰，分析后按状态着色 */
 .status-box{
-    display: inline-block;  /* 关键：span行内元素转块，才能设置宽度 */
-    background:#fee2e2;
-    color:#dc2626;
-    border-radius:12px;
-    font-size:18px;
+    display: inline-block;
+    min-width: 150px;
+    text-align: center;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    background: #eef2f7;
+    color: #5c6b7a;
 }
-
+/* 状态颜色：正常=绿 偏热=橙红 偏冷=蓝 偏湿=青 偏干=黄 */
+.status-box.st-normal{
+    background: #e6f7ee;
+    color: #1d7a44;
+}
+.status-box.st-hot{
+    background: #fdece6;
+    color: #d9480f;
+}
+.status-box.st-cold{
+    background: #e7f0fb;
+    color: #1c5fae;
+}
+.status-box.st-wet{
+    background: #e0f4f7;
+    color: #0e7490;
+}
+.status-box.st-dry{
+    background: #fdf4df;
+    color: #b07a0a;
+}
 .history-item{
-    background: #b8d9f9;
-    border-left: 4px solid #296eee;
-    padding: 8px 12px ;
-    margin: 6px 0;
-    border-radius: 4px;
+    margin: 8px 0;
+    padding: 10px 14px;
+    background: #f6f9fc;
+    border: 1px solid #e8eef5;
+    border-left: 4px solid #25617e;
+    border-radius: 8px;
+    font-size: 14px;
+}
+video{
+    display: block;
+    max-width: 100%;
+    border-radius: 10px;
+    background: #111;
+}
+hr{
+    border: none;
+    border-top: 1px solid #eef2f7;
+    margin: 22px 0;
+}
+@media (max-width: 560px){
+    .card{
+        padding: 20px 16px;
+    }
+    input{
+        width: 110px;
+    }
 }
